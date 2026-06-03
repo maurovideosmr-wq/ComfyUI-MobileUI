@@ -1,0 +1,176 @@
+{
+  "3": {
+    "inputs": {
+      "seed": [
+        "13",
+        0
+      ],
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "cyberrealistic_final.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 768,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": [
+        "12",
+        0
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": [
+        "16",
+        0
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "12": {
+    "inputs": {
+      "key": "postive",
+      "label": "正面",
+      "description": "正面提示词",
+      "placeholder": "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,",
+      "default_value": "beautiful scenery nature glass bottle landscape, , purple galaxy bottle,",
+      "required": "",
+      "order": 0
+    },
+    "class_type": "MobileUI Text Input",
+    "_meta": {
+      "title": "MobileUI Text Input"
+    }
+  },
+  "13": {
+    "inputs": {
+      "key": "seed",
+      "label": "Seed",
+      "description": "默认种子",
+      "default_seed": 1,
+      "mode": "randomize",
+      "order": 20
+    },
+    "class_type": "MobileUI Seed Input",
+    "_meta": {
+      "title": "MobileUI Seed Input"
+    }
+  },
+  "15": {
+    "inputs": {
+      "key": "result",
+      "label": "结果图",
+      "description": "输出图片",
+      "order": 100,
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "MobileUI Image Output",
+    "_meta": {
+      "title": "MobileUI Image Output"
+    }
+  },
+  "16": {
+    "inputs": {
+      "key": "negative",
+      "label": "负面",
+      "description": "负面提示词",
+      "placeholder": "text, watermark",
+      "default_value": "text, watermark",
+      "required": 10,
+      "order": 0
+    },
+    "class_type": "MobileUI Text Input",
+    "_meta": {
+      "title": "MobileUI Text Input"
+    }
+  }
+}

@@ -1,0 +1,321 @@
+{
+  "71": {
+    "inputs": {
+      "key": "size",
+      "label": "生成尺寸",
+      "description": "决定图片的生成尺寸",
+      "mode": "manual",
+      "default_width": 1024,
+      "default_height": 1024,
+      "default_aspect_ratio": "1:1",
+      "default_megapixels": 1,
+      "min_width": 256,
+      "max_width": 2048,
+      "min_height": 256,
+      "max_height": 2048,
+      "step": 8,
+      "required": true,
+      "order": 30
+    },
+    "class_type": "MobileUI Size Input",
+    "_meta": {
+      "title": "MobileUI Size Input"
+    }
+  },
+  "72": {
+    "inputs": {
+      "key": "Steps",
+      "label": "步数",
+      "description": "决定图片的生成步数",
+      "number_type": "int",
+      "default_value": 8,
+      "min": 1,
+      "max": 12,
+      "step": 1,
+      "display": "stepper",
+      "required": true,
+      "order": 40
+    },
+    "class_type": "MobileUI Number Input",
+    "_meta": {
+      "title": "MobileUI Number Input"
+    }
+  },
+  "74": {
+    "inputs": {
+      "key": "seed",
+      "label": "Seed",
+      "description": "种子数",
+      "default_seed": 1,
+      "mode": "fixed",
+      "order": 20
+    },
+    "class_type": "MobileUI Seed Input",
+    "_meta": {
+      "title": "MobileUI Seed Input"
+    }
+  },
+  "75": {
+    "inputs": {
+      "key": "postive",
+      "label": "正面提示词",
+      "description": "正面提示词",
+      "placeholder": "Anime monochrome cyberpunk front portrait, male figure, sleek skin with delicate mechanical lines, piercing glowing eyes, partial exposed metallic mecha components and light cables, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood",
+      "default_value": "Anime monochrome cyberpunk front portrait, male figure, sleek skin with delicate mechanical lines, piercing glowing eyes, partial exposed metallic mecha components and light cables, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood",
+      "required": true,
+      "order": 0
+    },
+    "class_type": "MobileUI Text Input",
+    "_meta": {
+      "title": "MobileUI Text Input"
+    }
+  },
+  "76": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "77": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "78": {
+    "inputs": {
+      "samples": [
+        "81",
+        0
+      ],
+      "vae": [
+        "77",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "79": {
+    "inputs": {
+      "width": [
+        "71",
+        0
+      ],
+      "height": [
+        "71",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "80": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, sepia",
+      "clip": [
+        "86",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "81": {
+    "inputs": {
+      "seed": [
+        "74",
+        0
+      ],
+      "steps": [
+        "72",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "er_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "86",
+        0
+      ],
+      "positive": [
+        "82",
+        0
+      ],
+      "negative": [
+        "80",
+        0
+      ],
+      "latent_image": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "82": {
+    "inputs": {
+      "text": [
+        "75",
+        0
+      ],
+      "clip": [
+        "86",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "83": {
+    "inputs": {
+      "unet_name": "anima-base-v1.0.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "84": {
+    "inputs": {
+      "key": "result",
+      "label": "结果图",
+      "description": "",
+      "order": 100,
+      "images": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "MobileUI Image Output",
+    "_meta": {
+      "title": "MobileUI Image Output"
+    }
+  },
+  "85": {
+    "inputs": {
+      "images": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "86": {
+    "inputs": {
+      "lora_name": "anima-turbo-lora-v0.2.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "83",
+        0
+      ],
+      "clip": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA (Model and CLIP)"
+    }
+  },
+  "88": {
+    "inputs": {
+      "key": "diffusion_model",
+      "label": "Diffusion Model",
+      "description": "",
+      "default_unet_name": "anima-base-v1.0.safetensors",
+      "default_weight_dtype": "default",
+      "required": true,
+      "order": 80
+    },
+    "class_type": "MobileUI Diffusion Model Selector",
+    "_meta": {
+      "title": "MobileUI Diffusion Model Selector"
+    }
+  },
+  "91": {
+    "inputs": {
+      "key": "clip",
+      "label": "CLIP",
+      "description": "",
+      "default_clip_name": "",
+      "default_type": "stable_diffusion",
+      "default_device": "default",
+      "required": true,
+      "order": 70
+    },
+    "class_type": "MobileUI CLIP Selector",
+    "_meta": {
+      "title": "MobileUI CLIP Selector"
+    }
+  },
+  "93": {
+    "inputs": {
+      "key": "vae",
+      "label": "VAE",
+      "description": "",
+      "default_vae_name": "",
+      "required": true,
+      "order": 60
+    },
+    "class_type": "MobileUI VAE Selector",
+    "_meta": {
+      "title": "MobileUI VAE Selector"
+    }
+  },
+  "94": {
+    "inputs": {
+      "key": "sampler",
+      "label": "Sampler",
+      "description": "",
+      "default_sampler_name": "euler",
+      "required": true,
+      "order": 90
+    },
+    "class_type": "MobileUI Sampler Selector",
+    "_meta": {
+      "title": "MobileUI Sampler Selector"
+    }
+  },
+  "95": {
+    "inputs": {
+      "key": "scheduler",
+      "label": "Scheduler",
+      "description": "",
+      "default_scheduler": "normal",
+      "required": true,
+      "order": 91
+    },
+    "class_type": "MobileUI Scheduler Selector",
+    "_meta": {
+      "title": "MobileUI Scheduler Selector"
+    }
+  }
+}
