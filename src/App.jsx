@@ -14,7 +14,9 @@ const ASPECT_OPTIONS = [
   ["2:3", "2:3 Portrait Photo"],
   ["3:4", "3:4 Portrait Standard"],
   ["9:16", "9:16 Portrait Widescreen"],
+  ["9:21", "9:21 Portrait Ultrawide"],
 ];
+const QUICK_ASPECTS = ["1:1", "3:2", "16:9", "21:9"];
 
 function App() {
   const [user, setUser] = useState("defaultuser");
@@ -235,47 +237,150 @@ function App() {
 
   return (
     <main className="app-shell">
-      <section className="topbar">
-        <div>
-          <p className="eyebrow">ComfyUI Mobile Wrapper</p>
-          <h1>{activeManifest?.title || "选择 workflow"}</h1>
-          {activeManifest?.description && <p className="subtitle">{activeManifest.description}</p>}
+      <header className="app-bar">
+        <div className="brand-block">
+          <span className="mark" aria-hidden="true"></span>
+          <div>
+            <strong>MobileUI Wrapper</strong>
+            <small>{user}</small>
+          </div>
         </div>
-        <div className="top-actions">
-          <button type="button" onClick={() => setPickerOpen(true)}>切换</button>
+        <div className="active-title">
+          <span className="eyebrow">active workflow</span>
+          <strong>{activeManifest?.title || "选择 workflow"}</strong>
+        </div>
+        <div className="connection-state">
+          <span className={`lamp ${comfyStatus.ok ? "on" : "off"}`}></span>
+          <strong>{comfyStatus.ok ? "online" : "offline"}</strong>
           <button type="button" onClick={refreshComfyStatus} title="刷新连接">刷新</button>
         </div>
-      </section>
+      </header>
 
-      <section className={`status ${comfyStatus.ok ? "ok" : "error"}`}>{comfyStatus.text}</section>
-      {status.text && <section className={`status ${status.type}`}>{status.text}</section>}
+      <div className="mobile-switcher">
+        <button type="button" onClick={() => setPickerOpen(true)}>workflows</button>
+        <strong>{activeManifest?.title || "选择 workflow"}</strong>
+        <button type="button" onClick={refreshComfyStatus}>status</button>
+      </div>
 
-      {activeManifest && (
-        <section className="workflow-strip">
-          <div>
-            <strong>{activeManifest.valid ? "可生成" : "不可生成"}</strong>
-            <small>{activeManifest.valid ? `${activeManifest.inputCount} 个输入 / ${activeManifest.outputCount} 个输出` : activeManifest.error}</small>
+      <div className="layout">
+        <aside className="library-panel surface">
+          <div className="panel-head">
+            <div>
+              <span className="section-id">01</span>
+              <h2>workflow library</h2>
+            </div>
+            <button type="button" onClick={() => setPickerOpen(true)}>切换</button>
           </div>
-          <button type="button" onClick={resetCurrentDraft}>恢复默认</button>
-        </section>
-      )}
+          <div className="tool-row">
+            <input value={query} placeholder="搜索 workflow" onChange={(event) => setQuery(event.target.value)} />
+            <UploadButton onFile={handleUpload} />
+          </div>
+          <div className="library-list">
+            {filteredWorkflows.map((workflow) => (
+              <button
+                className={`workflow-card ${workflow.id === activeId ? "active" : ""}`}
+                type="button"
+                key={workflow.id}
+                onClick={() => selectWorkflow(workflow.id)}
+              >
+                <Cover workflow={workflow} />
+                <span className="workflow-card-body">
+                  <strong>{workflow.title}</strong>
+                  <small>{workflow.description || "未填写介绍"}</small>
+                  <span className="tag-row">
+                    <span>{workflow.source === "project" ? "项目内置" : "用户上传"}</span>
+                    {hasDraft(user, workflow) && <span>已编辑</span>}
+                    <span>{workflow.valid ? "可用" : workflow.status}</span>
+                  </span>
+                </span>
+                {workflow.source === "user" && (
+                  <span
+                    className="delete-chip"
+                    role="button"
+                    tabIndex={0}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteTarget(workflow);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setDeleteTarget(workflow);
+                      }
+                    }}
+                  >
+                    删除
+                  </span>
+                )}
+              </button>
+            ))}
+            {filteredWorkflows.length === 0 && <p className="empty-copy">还没有匹配的 workflow。</p>}
+          </div>
+        </aside>
 
-      {!active && (
-        <section className="empty-state">
-          <button type="button" onClick={() => setPickerOpen(true)}>选择 workflow</button>
-          <UploadButton onFile={handleUpload} />
-        </section>
-      )}
+        <section className="main-panel">
+          <section className="workflow-header surface">
+            <div>
+              <span className="section-id">active workflow</span>
+              <h1>{activeManifest?.title || "选择 workflow"}</h1>
+              {activeManifest?.description && <p className="subtitle">{activeManifest.description}</p>}
+            </div>
+            <div className="workflow-actions">
+              <button type="button" onClick={() => setPickerOpen(true)}>切换</button>
+              {activeManifest && <button type="button" onClick={resetCurrentDraft}>恢复默认</button>}
+            </div>
+          </section>
 
-      {active?.schema && (
-        <form className="form-stack" onSubmit={runWorkflow}>
-          {inputFields.map((field) => (
-            <FieldControl key={field.key} field={field} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
-          ))}
+          <section className="status-strip surface">
+            <div>
+              <span className="section-id">comfy status</span>
+              <strong>{comfyStatus.ok ? "online" : "offline"}</strong>
+              <small>{comfyStatus.text}</small>
+            </div>
+            <div>
+              <span className="section-id">workflow status</span>
+              <strong>{activeManifest?.valid ? "可生成" : activeManifest ? "不可生成" : "未选择"}</strong>
+              <small>{activeManifest ? (activeManifest.valid ? `${activeManifest.inputCount} 个输入 / ${activeManifest.outputCount} 个输出` : activeManifest.error) : "请先选择或上传 workflow"}</small>
+            </div>
+            <div>
+              <span className="section-id">run state</span>
+              <strong>{status.type === "busy" ? "running" : status.type}</strong>
+              <small>{status.text || "等待操作"}</small>
+            </div>
+          </section>
+
+          {!active && (
+            <section className="empty-state">
+              <button type="button" onClick={() => setPickerOpen(true)}>选择 workflow</button>
+              <UploadButton onFile={handleUpload} />
+            </section>
+          )}
+
+          {active?.schema && (
+            <form className="form-stack" onSubmit={runWorkflow}>
+              {inputFields.map((field) => (
+                <FieldControl key={field.key} field={field} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
+              ))}
+
+              <button className="run-button" type="submit" disabled={status.type === "busy" || !activeManifest?.valid}>
+                {status.type === "busy" ? "生成中..." : "开始生成"}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <aside className="output-panel surface">
+          <div className="panel-head">
+            <div>
+              <span className="section-id">03</span>
+              <h2>run / output</h2>
+            </div>
+          </div>
 
           {outputFields.length > 0 && (
             <section className="outputs-summary">
-              <span>输出</span>
+              <span>声明输出</span>
               {outputFields.map((field) => (
                 <div className="output-item" key={field.key}>
                   <strong>{field.label}</strong>
@@ -285,24 +390,27 @@ function App() {
             </section>
           )}
 
-          <button className="run-button" type="submit" disabled={status.type === "busy" || !activeManifest?.valid}>
-            {status.type === "busy" ? "生成中..." : "开始生成"}
-          </button>
-        </form>
-      )}
+          {!result && (
+            <section className="result-placeholder">
+              <span className="section-id">result</span>
+              <p>生成完成后，声明输出图片会显示在这里。</p>
+            </section>
+          )}
 
-      {result && (
-        <section className="result-grid">
-          {result.outputs.map((output) => (
-            <article key={output.key} className="result-group">
-              <h2>{output.label}</h2>
-              {output.images.map((image) => (
-                <img key={`${image.filename}-${image.subfolder}`} src={image.url} alt={output.label} />
+          {result && (
+            <section className="result-grid">
+              {result.outputs.map((output) => (
+                <article key={output.key} className="result-group">
+                  <h2>{output.label}</h2>
+                  {output.images.map((image) => (
+                    <img key={`${image.filename}-${image.subfolder}`} src={image.url} alt={output.label} />
+                  ))}
+                </article>
               ))}
-            </article>
-          ))}
-        </section>
-      )}
+            </section>
+          )}
+        </aside>
+      </div>
 
       {pickerOpen && (
         <WorkflowPicker
@@ -469,49 +577,69 @@ function FieldControl({ field, value, onChange }) {
   }
 
   if (field.kind === "seed") {
+    const current = value ?? { seed: field.defaultSeed ?? 0, mode: field.mode ?? "fixed" };
     return (
-      <label className="field">
-        <FieldHeading field={field} />
-        <div className="seed-stack">
-          <div className="seed-row">
-            <input type="number" value={value?.seed ?? 0} onChange={(event) => onChange({ ...(value ?? {}), seed: Number(event.target.value) })} />
-            <button type="button" onClick={() => onChange({ ...(value ?? {}), seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) })}>随机</button>
+      <section className="field seed-control">
+        <div className="control-top">
+          <FieldHeading field={field} />
+          <div className="mini-actions">
+            <select aria-label={`${field.label} mode`} value={current.mode ?? field.mode} onChange={(event) => onChange({ ...current, mode: event.target.value })}>
+              <option value="fixed">fixed</option>
+              <option value="randomize">random</option>
+              <option value="increment">+1</option>
+              <option value="decrement">-1</option>
+            </select>
+            <button type="button" aria-label="随机 seed" title="随机 seed" onClick={() => onChange({ ...current, seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) })}>#</button>
+            <button type="button" aria-label="恢复默认 seed" title="恢复默认 seed" onClick={() => onChange({ seed: field.defaultSeed ?? 0, mode: field.mode ?? "fixed" })}>↻</button>
           </div>
-          <select value={value?.mode ?? field.mode} onChange={(event) => onChange({ ...(value ?? {}), mode: event.target.value })}>
-            <option value="fixed">fixed</option>
-            <option value="randomize">randomize</option>
-            <option value="increment">increment</option>
-            <option value="decrement">decrement</option>
-          </select>
         </div>
-      </label>
+        <input className="seed-number" type="number" value={current.seed ?? 0} onChange={(event) => onChange({ ...current, seed: Number(event.target.value) })} />
+      </section>
     );
   }
 
   if (field.kind === "size") {
     const current = value ?? sizeDefault(field);
     return (
-      <label className="field">
-        <FieldHeading field={field} />
-        <select value={current.mode} onChange={(event) => onChange(resolveSizeValue(field, { ...current, mode: event.target.value }))}>
-          <option value="manual">手动宽高</option>
-          <option value="aspect_mp">比例 + MP</option>
-        </select>
+      <section className="field size-control">
+        <div className="control-top">
+          <FieldHeading field={field} />
+          <div className="mini-actions">
+            <button className={current.mode === "manual" ? "active" : ""} type="button" onClick={() => onChange(resolveSizeValue(field, { ...current, mode: "manual" }))}>宽高</button>
+            <button className={current.mode === "aspect_mp" ? "active" : ""} type="button" onClick={() => onChange(resolveSizeValue(field, { ...current, mode: "aspect_mp" }))}>比例</button>
+            <button type="button" aria-label="恢复默认尺寸" title="恢复默认尺寸" onClick={() => onChange(sizeDefault(field))}>↻</button>
+          </div>
+        </div>
         {current.mode === "manual" ? (
-          <div className="size-grid">
-            <Stepper label="宽" value={current.width} step={field.step} min={field.minWidth} max={field.maxWidth} onChange={(width) => onChange(resolveSizeValue(field, { ...current, width }))} />
-            <Stepper label="高" value={current.height} step={field.step} min={field.minHeight} max={field.maxHeight} onChange={(height) => onChange(resolveSizeValue(field, { ...current, height }))} />
+          <div className="dimension-stack">
+            <CompactStepper label="宽" value={current.width} step={field.step} min={field.minWidth} max={field.maxWidth} onChange={(width) => onChange(resolveSizeValue(field, { ...current, width }))} />
+            <CompactStepper label="高" value={current.height} step={field.step} min={field.minHeight} max={field.maxHeight} onChange={(height) => onChange(resolveSizeValue(field, { ...current, height }))} />
           </div>
         ) : (
-          <div className="size-grid">
-            <select value={current.aspectRatio} onChange={(event) => onChange(resolveSizeValue(field, { ...current, aspectRatio: event.target.value }))}>
-              {ASPECT_OPTIONS.map(([optionValue, label]) => <option key={optionValue} value={optionValue}>{label}</option>)}
-            </select>
-            <Stepper label="MP" value={current.megapixels} step={0.05} min={0.1} max={16} onChange={(megapixels) => onChange(resolveSizeValue(field, { ...current, megapixels }))} />
-            <small>{current.width} x {current.height}</small>
+          <div className="aspect-stack">
+            <div className="aspect-row" aria-label="选择画幅比例">
+              {visibleAspectOptions(current.aspectRatio).map((optionValue) => {
+                const nextAspect = orientAspect(optionValue, aspectOrientation(current.aspectRatio));
+                return (
+                <button
+                  className={baseAspect(current.aspectRatio) === optionValue ? "active" : ""}
+                  key={optionValue}
+                  type="button"
+                  onClick={() => onChange(resolveSizeValue(field, { ...current, aspectRatio: nextAspect }))}
+                >
+                  {optionValue}
+                </button>
+                );
+              })}
+              <button className="orientation-toggle" type="button" onClick={() => onChange(resolveSizeValue(field, { ...current, aspectRatio: toggleAspectOrientation(current.aspectRatio) }))}>
+                {aspectOrientation(current.aspectRatio) === "portrait" ? "纵向" : "横向"}
+              </button>
+            </div>
+            <CompactStepper label="MP" value={current.megapixels} step={0.05} min={0.1} max={16} onChange={(megapixels) => onChange(resolveSizeValue(field, { ...current, megapixels }))} />
+            <small className="size-readout">{current.width} x {current.height} · {aspectOrientationLabel(current.aspectRatio)}</small>
           </div>
         )}
-      </label>
+      </section>
     );
   }
 
@@ -648,6 +776,17 @@ function Stepper({ label, value, step, min, max, onChange }) {
   );
 }
 
+function CompactStepper({ label, value, step, min, max, onChange }) {
+  return (
+    <div className="compact-stepper">
+      <span>{label}</span>
+      <button type="button" onClick={() => onChange(clamp(Number(value) - Number(step), min, max))}>-</button>
+      <input type="number" value={value} min={min} max={max} step={step} onChange={(event) => onChange(clamp(Number(event.target.value), min, max))} />
+      <button type="button" onClick={() => onChange(clamp(Number(value) + Number(step), min, max))}>+</button>
+    </div>
+  );
+}
+
 function FieldHeading({ field }) {
   return (
     <span className="field-heading">
@@ -655,6 +794,44 @@ function FieldHeading({ field }) {
       {field.description && <small>{field.description}</small>}
     </span>
   );
+}
+
+function aspectOrientation(value) {
+  const [width, height] = String(value).split(":").map(Number);
+  if (width > height) return "landscape";
+  if (height > width) return "portrait";
+  return "square";
+}
+
+function orientAspect(aspect, orientation) {
+  if (aspect === "1:1") return aspect;
+  const [width, height] = String(aspect).split(":");
+  return orientation === "portrait" ? `${height}:${width}` : `${width}:${height}`;
+}
+
+function toggleAspectOrientation(aspect) {
+  if (aspect === "1:1") return aspect;
+  const [width, height] = String(aspect).split(":");
+  return `${height}:${width}`;
+}
+
+function baseAspect(aspect) {
+  if (aspect === "1:1") return "1:1";
+  const [width, height] = String(aspect).split(":").map(Number);
+  const landscape = width >= height ? `${width}:${height}` : `${height}:${width}`;
+  return QUICK_ASPECTS.includes(landscape) ? landscape : aspect;
+}
+
+function visibleAspectOptions(current) {
+  const base = baseAspect(current);
+  return QUICK_ASPECTS.includes(base) ? QUICK_ASPECTS : [...QUICK_ASPECTS, current];
+}
+
+function aspectOrientationLabel(value) {
+  const orientation = aspectOrientation(value);
+  if (orientation === "landscape") return "横向";
+  if (orientation === "portrait") return "纵向";
+  return "方形";
 }
 
 function defaultValues(schema) {

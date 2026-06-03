@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MobileUI Studio Console 2026</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="ambient-grid" aria-hidden="true"></div>
+
+    <main class="shell">
+      <header class="mobile-top">
+        <button class="icon-button" type="button" aria-label="打开 workflow 库" data-panel="library">
+          <span class="icon">☰</span>
+        </button>
+        <div>
+          <p>MobileUI Studio</p>
+          <h1>Anima 1.0 Turbo</h1>
+        </div>
+        <button class="status-pill" type="button" data-status-toggle>
+          <span></span>
+          Online
+        </button>
+      </header>
+
+      <aside class="library panel" data-library>
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Workflow Library</p>
+            <h2>生成模板</h2>
+          </div>
+          <button class="icon-button compact" type="button" aria-label="关闭 workflow 库" data-close-library>
+            <span class="icon">×</span>
+          </button>
+        </div>
+
+        <label class="search">
+          <span>⌕</span>
+          <input type="search" placeholder="搜索 workflow" value="anima" />
+        </label>
+
+        <div class="workflow-list">
+          <button class="workflow-item active" type="button">
+            <span class="thumb thumb-a"></span>
+            <span>
+              <strong>Anima 1.0 Turbo</strong>
+              <small>9 inputs · 1 output · edited</small>
+            </span>
+          </button>
+          <button class="workflow-item" type="button">
+            <span class="thumb thumb-b"></span>
+            <span>
+              <strong>Portrait Lab</strong>
+              <small>6 inputs · project example</small>
+            </span>
+          </button>
+          <button class="workflow-item" type="button">
+            <span class="thumb thumb-c"></span>
+            <span>
+              <strong>Product Shot</strong>
+              <small>4 inputs · ready</small>
+            </span>
+          </button>
+        </div>
+
+        <button class="upload-button" type="button">
+          <span class="icon">↑</span>
+          上传 workflow
+        </button>
+      </aside>
+
+      <section class="workspace">
+        <nav class="desktop-top panel">
+          <div>
+            <p class="eyebrow">Active Workflow</p>
+            <h1>Anima 1.0 Turbo</h1>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-button" type="button">恢复默认</button>
+            <button class="status-pill" type="button">
+              <span></span>
+              ComfyUI Online
+            </button>
+          </div>
+        </nav>
+
+        <section class="run-banner">
+          <div class="signal-stack">
+            <span class="signal active"></span>
+            <span class="signal"></span>
+            <span class="signal"></span>
+          </div>
+          <div>
+            <strong data-run-title>等待生成</strong>
+            <small data-run-copy>参数已保存为本地草稿。点击生成后会显示 promptId 和运行阶段。</small>
+          </div>
+          <button class="ghost-button" type="button" data-simulate>模拟运行</button>
+        </section>
+
+        <form class="form-grid">
+          <section class="field wide">
+            <div class="field-title">
+              <span class="field-icon">T</span>
+              <div>
+                <strong>提示词</strong>
+                <small>描述画面主体、风格和动作。</small>
+              </div>
+            </div>
+            <textarea rows="5">anime portrait, luminous skin, detailed eyes, cinematic rim light, soft graphite background</textarea>
+          </section>
+
+          <section class="field">
+            <div class="field-title">
+              <span class="field-icon">▣</span>
+              <div>
+                <strong>尺寸</strong>
+                <small>比例 + MP 模式</small>
+              </div>
+            </div>
+            <div class="segmented">
+              <button class="active" type="button">9:16</button>
+              <button type="button">1:1</button>
+              <button type="button">16:9</button>
+            </div>
+            <label class="range-row">
+              <span>1.25 MP</span>
+              <input type="range" min="0.5" max="2" step="0.05" value="1.25" />
+            </label>
+          </section>
+
+          <section class="field">
+            <div class="field-title">
+              <span class="field-icon">#</span>
+              <div>
+                <strong>Seed</strong>
+                <small>increment</small>
+              </div>
+            </div>
+            <div class="input-row">
+              <input type="number" value="472910" />
+              <button class="icon-button" type="button" aria-label="随机 seed">
+                <span class="icon">↻</span>
+              </button>
+            </div>
+            <select>
+              <option>increment</option>
+              <option>fixed</option>
+              <option>randomize</option>
+            </select>
+          </section>
+
+          <section class="field">
+            <div class="field-title">
+              <span class="field-icon">V</span>
+              <div>
+                <strong>VAE</strong>
+                <small>模型选择器</small>
+              </div>
+            </div>
+            <select>
+              <option>ae.safetensors</option>
+              <option>vae-ft-mse-840000-ema-pruned.safetensors</option>
+            </select>
+          </section>
+
+          <section class="field">
+            <div class="field-title">
+              <span class="field-icon">S</span>
+              <div>
+                <strong>Sampler</strong>
+                <small>采样策略</small>
+              </div>
+            </div>
+            <div class="segmented">
+              <button class="active" type="button">euler</button>
+              <button type="button">dpmpp</button>
+              <button type="button">uni_pc</button>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <aside class="inspector panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Output</p>
+            <h2>结果预览</h2>
+          </div>
+          <button class="icon-button compact" type="button" aria-label="下载结果">
+            <span class="icon">↓</span>
+          </button>
+        </div>
+
+        <div class="preview-frame">
+          <div class="preview-art">
+            <span></span>
+          </div>
+        </div>
+
+        <div class="metrics">
+          <div>
+            <strong>00:42</strong>
+            <small>last run</small>
+          </div>
+          <div>
+            <strong>1 image</strong>
+            <small>MobileUI/result</small>
+          </div>
+        </div>
+
+        <ol class="timeline">
+          <li class="done">schema parsed</li>
+          <li class="done">prompt queued</li>
+          <li class="current">rendering preview</li>
+          <li>output declared</li>
+        </ol>
+      </aside>
+
+      <button class="run-dock" type="button" data-run>
+        <span>开始生成</span>
+        <strong>Ctrl Enter</strong>
+      </button>
+    </main>
+
+    <script>
+      const library = document.querySelector("[data-library]");
+      const runTitle = document.querySelector("[data-run-title]");
+      const runCopy = document.querySelector("[data-run-copy]");
+      const signals = [...document.querySelectorAll(".signal")];
+
+      document.querySelector("[data-panel='library']").addEventListener("click", () => {
+        library.classList.add("open");
+      });
+
+      document.querySelector("[data-close-library]").addEventListener("click", () => {
+        library.classList.remove("open");
+      });
+
+      function simulateRun() {
+        const steps = [
+          ["提交中", "正在把参数写入 MobileUI 节点。"],
+          ["队列中", "promptId: 7f2c-demo-2026，等待 ComfyUI 执行。"],
+          ["生成中", "KSampler 正在运行，结果会出现在右侧。"],
+          ["生成完成", "MobileUI Image Output 已返回 1 张图片。"],
+        ];
+        steps.forEach(([title, copy], index) => {
+          window.setTimeout(() => {
+            runTitle.textContent = title;
+            runCopy.textContent = copy;
+            signals.forEach((signal, signalIndex) => {
+              signal.classList.toggle("active", signalIndex <= Math.min(index, 2));
+            });
+          }, index * 900);
+        });
+      }
+
+      document.querySelector("[data-run]").addEventListener("click", simulateRun);
+      document.querySelector("[data-simulate]").addEventListener("click", simulateRun);
+    </script>
+  </body>
+</html>

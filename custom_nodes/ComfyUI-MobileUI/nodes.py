@@ -149,7 +149,7 @@ class MobileUISizeInput:
                 "mode": (["manual", "aspect_mp"],),
                 "default_width": ("INT", {"default": 1024, "min": 8, "max": 8192}),
                 "default_height": ("INT", {"default": 1024, "min": 8, "max": 8192}),
-                "default_aspect_ratio": (["1:1", "3:2", "4:3", "16:9", "21:9", "2:3", "3:4", "9:16"],),
+                "default_aspect_ratio": (["1:1", "3:2", "4:3", "16:9", "21:9", "2:3", "3:4", "9:16", "9:21"],),
                 "default_megapixels": ("FLOAT", {"default": 1.0, "min": 0.1, "max": 16.0, "step": 0.05}),
                 "min_width": ("INT", {"default": 256, "min": 8, "max": 8192}),
                 "max_width": ("INT", {"default": 2048, "min": 8, "max": 8192}),

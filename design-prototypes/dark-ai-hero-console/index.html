@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MobileUI Neutral Tool Mockup</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-frame">
+      <header class="app-bar">
+        <div class="brand-block">
+          <span class="mark" aria-hidden="true"></span>
+          <div>
+            <strong>MobileUI Wrapper</strong>
+            <small>defaultuser / ComfyUI 192.168.124.41:8188</small>
+          </div>
+        </div>
+        <div class="app-tabs" role="tablist" aria-label="workspace">
+          <button class="active" type="button">Run</button>
+          <button type="button">Library</button>
+          <button type="button">History</button>
+          <button type="button">Settings</button>
+        </div>
+        <div class="connection-state">
+          <span class="lamp"></span>
+          <strong>online</strong>
+          <button type="button">refresh</button>
+        </div>
+      </header>
+
+      <section class="mobile-switcher">
+        <button type="button" data-open-library>workflows</button>
+        <strong>Anima 1.0 Turbo</strong>
+        <button type="button" data-open-output>outputs</button>
+      </section>
+
+      <div class="layout">
+        <aside class="library-panel surface" data-library>
+          <div class="panel-head">
+            <div>
+              <span class="section-id">01</span>
+              <h2>workflow library</h2>
+            </div>
+            <button class="icon-close" type="button" data-close-library aria-label="close workflow library">×</button>
+          </div>
+
+          <div class="tool-row">
+            <label class="search-box">
+              <span>search</span>
+              <input value="anima" aria-label="search workflow" />
+            </label>
+            <button class="square-action" type="button">upload</button>
+          </div>
+
+          <div class="library-list">
+            <article class="workflow-card selected">
+              <div class="cover neutral-cover">
+                <span>AN</span>
+              </div>
+              <div>
+                <strong>Anima 1.0 Turbo</strong>
+                <small>user upload / 9 inputs / 1 output / draft</small>
+                <div class="chip-line">
+                  <span>ready</span>
+                  <span>v1.0</span>
+                  <button type="button">delete</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="workflow-card">
+              <div class="cover pale-cover">
+                <span>MV</span>
+              </div>
+              <div>
+                <strong>mobileUI_dev</strong>
+                <small>project example / 3 inputs / 1 output</small>
+                <div class="chip-line">
+                  <span>read only</span>
+                  <span>ready</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="workflow-card warning">
+              <div class="cover dark-cover">
+                <span>UP</span>
+              </div>
+              <div>
+                <strong>uploaded conflict</strong>
+                <small>same workflow_id with different hash</small>
+                <div class="chip-line">
+                  <button type="button">overwrite</button>
+                  <button type="button">duplicate</button>
+                  <button type="button">cancel</button>
+                </div>
+              </div>
+            </article>
+          </div>
+
+          <section class="confirm-box">
+            <span class="section-id">delete confirmation</span>
+            <p>Delete “Anima 1.0 Turbo”? This removes the user workflow package and clears only this workflow draft.</p>
+            <div class="button-pair">
+              <button class="danger" type="button">delete</button>
+              <button type="button">cancel</button>
+            </div>
+          </section>
+        </aside>
+
+        <section class="main-panel">
+          <div class="workflow-header surface">
+            <div>
+              <span class="section-id">active workflow</span>
+              <h1>Anima 1.0 Turbo</h1>
+              <p>Mobile controls generated from declaration nodes. Duplicate same-key controls are shown once, values patch every matching node.</p>
+            </div>
+            <div class="workflow-actions">
+              <button type="button">switch</button>
+              <button type="button">restore default</button>
+              <button class="primary" type="button" data-run>start generation</button>
+            </div>
+          </div>
+
+          <section class="status-strip surface" aria-live="polite">
+            <div>
+              <span class="section-id">run state</span>
+              <strong data-run-state>idle</strong>
+              <small data-run-copy>Workflow loaded. Required inputs are complete.</small>
+            </div>
+            <div>
+              <span class="section-id">prompt id</span>
+              <strong data-prompt-id>none</strong>
+              <small>complete test requires real /api/run output</small>
+            </div>
+            <div>
+              <span class="section-id">schema</span>
+              <strong>9 inputs / 1 output</strong>
+              <small>valid api workflow</small>
+            </div>
+          </section>
+
+          <form class="control-board">
+            <section class="control span-2">
+              <div class="control-head">
+                <span>text input</span>
+                <strong>Prompt</strong>
+              </div>
+              <textarea rows="5">anime portrait, neutral studio background, crisp linework, controlled light, clean output</textarea>
+              <small>Maps to MobileUI Text Input key: prompt</small>
+            </section>
+
+            <section class="control upload-zone">
+              <div class="control-head">
+                <span>image input</span>
+                <strong>Reference Image</strong>
+              </div>
+              <div class="drop-target">
+                <span>drop image</span>
+                <small>png / jpg / webp</small>
+              </div>
+              <small>Required. Uploaded to ComfyUI before queueing.</small>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>seed input</span>
+                <strong>Seed</strong>
+              </div>
+              <div class="inline-grid">
+                <input type="number" value="472910" />
+                <button type="button">random</button>
+              </div>
+              <select>
+                <option>increment</option>
+                <option>fixed</option>
+                <option>randomize</option>
+                <option>decrement</option>
+              </select>
+            </section>
+
+            <section class="control span-2">
+              <div class="control-head">
+                <span>size input</span>
+                <strong>Canvas Size</strong>
+              </div>
+              <div class="segmented">
+                <button class="active" type="button">manual</button>
+                <button type="button">aspect + MP</button>
+              </div>
+              <div class="dimension-grid">
+                <label>
+                  <span>width</span>
+                  <input type="number" value="1024" />
+                </label>
+                <label>
+                  <span>height</span>
+                  <input type="number" value="1536" />
+                </label>
+                <label>
+                  <span>aspect</span>
+                  <select>
+                    <option>9:16</option>
+                    <option>1:1</option>
+                    <option>16:9</option>
+                  </select>
+                </label>
+                <label>
+                  <span>megapixels</span>
+                  <input type="number" value="1.25" />
+                </label>
+              </div>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>number input</span>
+                <strong>CFG</strong>
+              </div>
+              <input type="range" min="0" max="20" value="7.5" />
+              <div class="inline-grid">
+                <button type="button">−</button>
+                <input type="number" value="7.5" />
+                <button type="button">+</button>
+              </div>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>select input</span>
+                <strong>Quality</strong>
+              </div>
+              <select>
+                <option>high</option>
+                <option>medium</option>
+                <option>low</option>
+              </select>
+              <small>Options parsed from newline-separated options_text.</small>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>vae selector</span>
+                <strong>VAE</strong>
+              </div>
+              <label class="filter-input">
+                <span>filter</span>
+                <input value="ae" />
+              </label>
+              <select>
+                <option>ae.safetensors</option>
+                <option>vae-ft-mse.safetensors</option>
+              </select>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>clip selector</span>
+                <strong>CLIP</strong>
+              </div>
+              <select>
+                <option>qwen_image_clip.safetensors</option>
+                <option>clip_l.safetensors</option>
+              </select>
+              <div class="inline-grid">
+                <select>
+                  <option>qwen_image</option>
+                  <option>stable_diffusion</option>
+                </select>
+                <select>
+                  <option>default</option>
+                  <option>cpu</option>
+                </select>
+              </div>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>diffusion selector</span>
+                <strong>UNet</strong>
+              </div>
+              <select>
+                <option>model.safetensors</option>
+                <option>flux-dev.safetensors</option>
+              </select>
+              <select>
+                <option>default</option>
+                <option>fp8_e5m2</option>
+                <option>fp8_e4m3fn</option>
+              </select>
+            </section>
+
+            <section class="control">
+              <div class="control-head">
+                <span>sampler / scheduler</span>
+                <strong>Sampling</strong>
+              </div>
+              <div class="button-matrix">
+                <button class="active" type="button">euler</button>
+                <button type="button">dpmpp</button>
+                <button type="button">uni pc</button>
+                <button type="button">ddim</button>
+              </div>
+              <select>
+                <option>normal</option>
+                <option>karras</option>
+                <option>exponential</option>
+              </select>
+            </section>
+          </form>
+        </section>
+
+        <aside class="output-panel surface" data-output>
+          <div class="panel-head">
+            <div>
+              <span class="section-id">03</span>
+              <h2>run / output</h2>
+            </div>
+            <button class="icon-close" type="button" data-close-output aria-label="close output panel">×</button>
+          </div>
+
+          <section class="result-preview">
+            <div class="preview-image">
+              <span class="portrait-head"></span>
+              <span class="portrait-body"></span>
+            </div>
+            <div class="output-meta">
+              <strong>Result Image</strong>
+              <small>MobileUI Image Output / result</small>
+              <button type="button">open original</button>
+            </div>
+          </section>
+
+          <section class="run-log">
+            <span class="section-id">execution path</span>
+            <ol>
+              <li class="done">/api/comfy/status ok:true</li>
+              <li class="done">workflow schema parsed</li>
+              <li data-current-step>waiting for /api/run</li>
+              <li>declared image url returned</li>
+            </ol>
+          </section>
+
+          <section class="history-list">
+            <span class="section-id">recent results</span>
+            <article>
+              <span class="mini-output"></span>
+              <div>
+                <strong>00:42</strong>
+                <small>seed 472909 / euler / 1024×1536</small>
+              </div>
+            </article>
+            <article>
+              <span class="mini-output alt"></span>
+              <div>
+                <strong>00:31</strong>
+                <small>seed 472908 / euler / 1024×1536</small>
+              </div>
+            </article>
+          </section>
+
+          <section class="error-box">
+            <span class="section-id">failure detail mock</span>
+            <p>When ComfyUI validation fails, show the node id, input name, missing model, and the workflow field that caused it.</p>
+          </section>
+        </aside>
+      </div>
+    </main>
+
+    <script>
+      const library = document.querySelector("[data-library]");
+      const output = document.querySelector("[data-output]");
+      const runState = document.querySelector("[data-run-state]");
+      const runCopy = document.querySelector("[data-run-copy]");
+      const promptId = document.querySelector("[data-prompt-id]");
+      const currentStep = document.querySelector("[data-current-step]");
+
+      document.querySelector("[data-open-library]").addEventListener("click", () => library.classList.add("open"));
+      document.querySelector("[data-close-library]").addEventListener("click", () => library.classList.remove("open"));
+      document.querySelector("[data-open-output]").addEventListener("click", () => output.classList.add("open"));
+      document.querySelector("[data-close-output]").addEventListener("click", () => output.classList.remove("open"));
+
+      document.querySelector("[data-run]").addEventListener("click", () => {
+        const steps = [
+          ["patching", "Normalizing MobileUI nodes and applying draft values.", "patchWorkflow"],
+          ["queued", "Prompt accepted by ComfyUI. Waiting for history.", "prompt_id 7f2c-neutral-demo"],
+          ["running", "ComfyUI is rendering. Declared output node is being watched.", "history polling"],
+          ["complete", "Declared output image URL returned.", "declared image url returned"],
+        ];
+        steps.forEach(([state, copy, step], index) => {
+          window.setTimeout(() => {
+            runState.textContent = state;
+            runCopy.textContent = copy;
+            promptId.textContent = index === 0 ? "pending" : "7f2c-neutral-demo";
+            currentStep.textContent = step;
+            currentStep.classList.toggle("done", index === steps.length - 1);
+          }, index * 700);
+        });
+      });
+    </script>
+  </body>
+</html>

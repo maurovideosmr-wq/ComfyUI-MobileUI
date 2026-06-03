@@ -160,6 +160,15 @@ User-uploaded workflows can be deleted from the workflow picker after a confirma
 
 If a workflow contains multiple MobileUI input nodes with the same `key` and the same kind, the mobile UI shows one control for that key. The submitted value is still applied to every matching node when the workflow runs.
 
+## Frontend UI
+
+The current wrapper UI uses a neutral black/gray, square-edged tool layout:
+
+- Desktop: left workflow library, center generated form, right declared output/result panel.
+- Mobile: compact top switcher, single-column form, workflow selection through the existing picker.
+- Seed and size controls are mobile-first compact controllers: seed keeps mode/random/reset actions beside the title, manual size keeps width/height steppers on one row, and aspect mode uses four quick ratio buttons (`1:1`, `3:2`, `16:9`, `21:9`) plus one orientation toggle and a compact MP stepper.
+- The visual refresh does not add new workflow behavior; it restyles the existing library, upload, conflict, delete, draft reset, dynamic form, run, and result features.
+
 ## Workflow
 
 1. Build the real ComfyUI graph.
@@ -181,6 +190,32 @@ npm run dev
 npm test
 npm run build
 ```
+
+## Design Prototype
+
+A standalone static design prototype is available at:
+
+```text
+design-prototypes\studio-console-2026\index.html
+```
+
+It is only a visual HTML/CSS/vanilla JS prototype and does not change the current React wrapper.
+
+A sharper no-rounded-corners alternative inspired by engineering/product-catalog UI is available at:
+
+```text
+design-prototypes\hardline-engineering-console\index.html
+```
+
+This second prototype is also static-only and does not change the current React wrapper.
+
+A dark neutral tool mockup inspired by modern shadcn/Tailark motion and surface depth is available at:
+
+```text
+design-prototypes\dark-ai-hero-console\index.html
+```
+
+It keeps the prototype static-only, removes the marketing hero, uses neutral black/gray colors, avoids rounded corners, and mocks the current wrapper structure: workflow library, upload/conflict/delete states, dynamic MobileUI controls, run status, outputs, recent history, and failure detail.
 
 ## Verification
 

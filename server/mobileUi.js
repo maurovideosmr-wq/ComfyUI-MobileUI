@@ -25,6 +25,7 @@ export const ASPECT_RATIOS = {
   "2:3": { label: "2:3 Portrait Photo", width: 2, height: 3 },
   "3:4": { label: "3:4 Portrait Standard", width: 3, height: 4 },
   "9:16": { label: "9:16 Portrait Widescreen", width: 9, height: 16 },
+  "9:21": { label: "9:21 Portrait Ultrawide", width: 9, height: 21 },
 };
 
 export function isApiWorkflow(value) {

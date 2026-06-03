@@ -1,3 +1,107 @@
+# devlog 2026-06-04 00:39 Improve mobile seed and size controls
+
+### Changed
+
+- Reworked the seed field into a compact mobile-first controller with mode, random, and reset actions beside the title and a normal-size seed number input.
+- Reworked manual size mode so width and height steppers fit on one mobile row.
+- Reworked aspect + MP size mode to use four quick aspect-ratio buttons (`1:1`, `3:2`, `16:9`, `21:9`), one orientation toggle, and a compact MP stepper on the same row as the size readout.
+- Removed the decorative ratio-shape boxes from aspect buttons.
+- Added `9:21` support so the `21:9` quick ratio can be toggled to portrait without being normalized away.
+- Updated and reinstalled the ComfyUI custom node package because the size node dropdown choices changed.
+
+### Verification
+
+- `npm test` passes with 11 automated tests.
+- `npm run build` passes as a build check.
+- CSS scan found no green color tokens and no non-zero border radius.
+- Browser mobile viewport checks confirmed:
+  - Aspect mode shows `1:1`, `3:2`, `16:9`, `21:9`, and one orientation toggle.
+  - MP and generated size readout fit on one row.
+  - Manual width/height mode keeps width and height steppers on one row.
+  - The selected workflow still renders 9 controls and no rounded elements.
+- `npm run install:comfy-node` completed and source/target hashes matched for `nodes.py`, `README.md`, and `__init__.py`.
+- ComfyUI must be restarted before the updated custom node dropdown choices appear in ComfyUI.
+- Complete ComfyUI end-to-end generation through `/api/run` was not run for this entry.
+
+# devlog 2026-06-04 00:06 Migrate neutral tool style to React frontend
+
+### Changed
+
+- Migrated the selected neutral black/gray square-edged tool style from the static prototype into the real React frontend.
+- Reworked the existing wrapper layout into a desktop tool surface with a left workflow library, center generated MobileUI form, and right declared output/result panel.
+- Added a compact mobile switcher and kept mobile workflow selection on the existing picker.
+- Preserved existing behavior only: workflow listing/selection, upload, upload conflict dialog, delete confirmation, per-workflow drafts, reset defaults, dynamic controls, run submission, and result display.
+- Removed the previous rounded light mobile-card visual style from the production frontend.
+- Did not change backend behavior or custom node files.
+
+### Verification
+
+- `npm test` passes with 11 automated tests.
+- `npm run build` passes as a build check.
+- CSS scan found no green color tokens and no non-zero border radius.
+- Complete ComfyUI end-to-end generation through `/api/run` was not run for this entry.
+
+# devlog 2026-06-03 23:04 Convert dark AI hero prototype into neutral tool mockup
+
+### Changed
+
+- Reworked `design-prototypes/dark-ai-hero-console` from a marketing-style hero page into a full tool mockup.
+- Removed the oversized hero section and switched to a first-screen application layout.
+- Changed the visual direction to neutral black/gray/white with no green accent color.
+- Mocked the current wrapper structure and states: workflow library, upload action, conflict actions, delete confirmation, active workflow header, ComfyUI status, draft/reset controls, generated MobileUI form controls, run status, prompt id, declared output preview, recent history, and failure detail.
+- Kept the prototype static-only and square-edged.
+- Existing React wrapper source files were not changed.
+
+### Verification
+
+- Static HTML/CSS/vanilla JS prototype only.
+- No runtime code changed.
+
+# devlog 2026-06-03 22:45 Add dark AI hero console prototype
+
+### Changed
+
+- Added a third standalone static prototype under `design-prototypes/dark-ai-hero-console`.
+- Adapted a modern shadcn/Tailark-style dark AI hero direction into a ComfyUI MobileUI wrapper concept.
+- Used blurred reveal animation, fixed translucent nav, large hero headline, product-preview console, capability strip, and simulated run state updates.
+- Kept the design square-edged to respect the no-rounded-corners preference.
+- Documented the prototype path in README.
+- Existing React wrapper source files were not changed.
+
+### Verification
+
+- Static HTML/CSS/vanilla JS prototype only.
+- No runtime code changed.
+
+# devlog 2026-06-03 22:37 Add hardline no-radius engineering console prototype
+
+### Changed
+
+- Added a second standalone static prototype under `design-prototypes/hardline-engineering-console`.
+- Explored a sharp-edged engineering/product-catalog direction with no rounded corners, high-contrast grid lines, dense controls, square status LEDs, and instrument-like parameter panels.
+- Documented the prototype path in README.
+- Existing React wrapper source files were not changed.
+
+### Verification
+
+- Static HTML/CSS/vanilla JS prototype only.
+- No runtime code changed.
+
+# devlog 2026-06-03 22:24 Add static Studio Console 2026 design prototype
+
+### Changed
+
+- Added a standalone static prototype under `design-prototypes/studio-console-2026`.
+- The prototype sketches a 2026-style MobileUI Studio Console with workflow library, parameter controls, run status, result preview, responsive mobile layout, and a small simulated run interaction.
+- Documented the prototype path in README.
+- Existing React wrapper source files were not changed.
+
+### Verification
+
+- Static HTML/CSS/vanilla JS prototype only.
+- No runtime code changed.
+- Previous `npm test` and `npm run build` checks passed before this prototype was added.
+
 # devlog 2026-06-03 22:00 Add workflow delete confirmation and dedupe duplicate controls
 
 ### Changed

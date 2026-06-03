@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MobileUI Hardline Engineering Console</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="#">mobile ui</a>
+      <nav aria-label="primary">
+        <a href="#">workflows</a>
+        <a href="#">run</a>
+        <a href="#">outputs</a>
+        <a href="#">settings</a>
+      </nav>
+      <button class="cart-button" type="button">queue 0</button>
+    </header>
+
+    <main class="page-grid">
+      <aside class="catalog">
+        <section class="module">
+          <div class="module-title">
+            <span>001</span>
+            <strong>workflow catalog</strong>
+          </div>
+          <label class="search">
+            <span>search</span>
+            <input value="anima" aria-label="search workflows" />
+          </label>
+          <div class="workflow-stack">
+            <button class="workflow active" type="button">
+              <span class="workflow-code">AN-10</span>
+              <span>
+                <strong>Anima 1.0 Turbo</strong>
+                <small>9 inputs / 1 output</small>
+              </span>
+            </button>
+            <button class="workflow" type="button">
+              <span class="workflow-code red">PT-04</span>
+              <span>
+                <strong>Portrait Lab</strong>
+                <small>project example</small>
+              </span>
+            </button>
+            <button class="workflow" type="button">
+              <span class="workflow-code blue">PR-08</span>
+              <span>
+                <strong>Product Shot</strong>
+                <small>ready</small>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="module">
+          <div class="module-title">
+            <span>002</span>
+            <strong>comfy status</strong>
+          </div>
+          <div class="status-grid">
+            <span class="led on"></span>
+            <span>online</span>
+            <small>192.168.124.41:8188</small>
+          </div>
+        </section>
+      </aside>
+
+      <section class="workbench">
+        <section class="hero-module">
+          <div>
+            <p>active workflow</p>
+            <h1>Anima 1.0 Turbo</h1>
+          </div>
+          <div class="hero-meta">
+            <span>api workflow</span>
+            <span>draft saved</span>
+            <span>valid</span>
+          </div>
+        </section>
+
+        <section class="run-strip" aria-live="polite">
+          <div>
+            <span class="run-index">run state</span>
+            <strong data-run-state>standby</strong>
+            <small data-run-copy>waiting for parameters. press generate to simulate the ComfyUI path.</small>
+          </div>
+          <button class="primary-action" type="button" data-run>generate</button>
+        </section>
+
+        <form class="control-grid">
+          <section class="control text-control">
+            <div class="control-head">
+              <span>text input</span>
+              <strong>prompt</strong>
+            </div>
+            <textarea rows="6">anime portrait, crisp contour light, textured garment, clean background, instrument panel composition</textarea>
+          </section>
+
+          <section class="control">
+            <div class="control-head">
+              <span>dimension</span>
+              <strong>size</strong>
+            </div>
+            <div class="switch-row">
+              <button class="switch active" type="button">9:16</button>
+              <button class="switch" type="button">1:1</button>
+              <button class="switch" type="button">16:9</button>
+            </div>
+            <label class="fader">
+              <span>megapixels</span>
+              <input type="range" min="0.5" max="2" step="0.05" value="1.25" />
+              <strong>1.25</strong>
+            </label>
+          </section>
+
+          <section class="control">
+            <div class="control-head">
+              <span>integer</span>
+              <strong>seed</strong>
+            </div>
+            <div class="number-bed">
+              <input type="number" value="472910" />
+              <button type="button">rnd</button>
+            </div>
+            <select>
+              <option>increment</option>
+              <option>fixed</option>
+              <option>randomize</option>
+              <option>decrement</option>
+            </select>
+          </section>
+
+          <section class="control">
+            <div class="control-head">
+              <span>model</span>
+              <strong>vae</strong>
+            </div>
+            <select>
+              <option>ae.safetensors</option>
+              <option>vae-ft-mse-840000-ema-pruned.safetensors</option>
+            </select>
+            <div class="meter">
+              <span style="--level: 62%"></span>
+            </div>
+          </section>
+
+          <section class="control">
+            <div class="control-head">
+              <span>sampler</span>
+              <strong>method</strong>
+            </div>
+            <div class="button-matrix">
+              <button class="active" type="button">euler</button>
+              <button type="button">dpmpp</button>
+              <button type="button">uni pc</button>
+              <button type="button">ddim</button>
+            </div>
+          </section>
+        </form>
+      </section>
+
+      <aside class="output">
+        <section class="module">
+          <div class="module-title">
+            <span>003</span>
+            <strong>declared output</strong>
+          </div>
+          <div class="image-device">
+            <div class="image-screen">
+              <span class="face"></span>
+              <span class="shadow"></span>
+            </div>
+            <div class="device-labels">
+              <span>mobileui/result</span>
+              <span>temp image</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="module">
+          <div class="module-title">
+            <span>004</span>
+            <strong>run log</strong>
+          </div>
+          <ol class="log">
+            <li class="done">schema parsed</li>
+            <li class="done">values patched</li>
+            <li data-log-current>ready</li>
+            <li>output url</li>
+          </ol>
+        </section>
+      </aside>
+    </main>
+
+    <script>
+      const runButton = document.querySelector("[data-run]");
+      const runState = document.querySelector("[data-run-state]");
+      const runCopy = document.querySelector("[data-run-copy]");
+      const logCurrent = document.querySelector("[data-log-current]");
+
+      runButton.addEventListener("click", () => {
+        const steps = [
+          ["patching", "writing mobile values back into declaration nodes.", "prompt patch"],
+          ["queued", "prompt id: hardline-demo-2026. waiting for ComfyUI.", "queue prompt"],
+          ["running", "sampler active. output node is being watched.", "sampler"],
+          ["complete", "declared image url returned.", "complete"],
+        ];
+        steps.forEach(([state, copy, log], index) => {
+          window.setTimeout(() => {
+            runState.textContent = state;
+            runCopy.textContent = copy;
+            logCurrent.textContent = log;
+            logCurrent.classList.toggle("done", index === steps.length - 1);
+          }, index * 750);
+        });
+      });
+    </script>
+  </body>
+</html>

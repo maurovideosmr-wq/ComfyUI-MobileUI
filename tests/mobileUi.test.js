@@ -123,6 +123,9 @@ test("resolves size values to step-aligned dimensions", () => {
   const aspect = resolveSize(field, { mode: "aspect_mp", aspectRatio: "16:9", megapixels: 1 });
   assert.equal(aspect.width % 8, 0);
   assert.equal(aspect.height % 8, 0);
+  const portraitUltra = resolveSize(field, { mode: "aspect_mp", aspectRatio: "9:21", megapixels: 1 });
+  assert.equal(portraitUltra.aspectRatio, "9:21");
+  assert.equal(portraitUltra.height > portraitUltra.width, true);
   assert.deepEqual(sizeFromAspectMegapixels("1:1", 1, 8), { width: 1000, height: 1000 });
 });
 
