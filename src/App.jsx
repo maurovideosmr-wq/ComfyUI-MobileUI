@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
@@ -31,6 +31,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [pendingUpload, setPendingUpload] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const outputPanelRef = useRef(null);
 
   useEffect(() => {
     boot();
@@ -50,6 +51,7 @@ function App() {
   const inputFields = useMemo(() => uniqueInputFields(active?.schema?.inputs ?? []), [active]);
   const outputFields = useMemo(() => active?.schema?.outputs ?? [], [active]);
   const activeManifest = active?.manifest;
+  const runDisabled = status.type === "busy" || !activeManifest?.valid;
   const filteredWorkflows = workflows.filter((workflow) => {
     const text = `${workflow.title} ${workflow.description} ${(workflow.tags ?? []).join(" ")}`.toLowerCase();
     return text.includes(query.toLowerCase());
@@ -235,6 +237,10 @@ function App() {
     setStatus({ type: "ok", text: "已恢复这个 workflow 的原始默认值。" });
   }
 
+  function scrollToOutput() {
+    outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <main className="app-shell">
       <header className="app-bar">
@@ -259,7 +265,7 @@ function App() {
       <div className="mobile-switcher">
         <button type="button" onClick={() => setPickerOpen(true)}>workflows</button>
         <strong>{activeManifest?.title || "选择 workflow"}</strong>
-        <button type="button" onClick={refreshComfyStatus}>status</button>
+        <button type="button" onClick={scrollToOutput}>run/output</button>
       </div>
 
       <div className="layout">
@@ -358,19 +364,15 @@ function App() {
           )}
 
           {active?.schema && (
-            <form className="form-stack" onSubmit={runWorkflow}>
+            <form id="workflow-run-form" className="form-stack" onSubmit={runWorkflow}>
               {inputFields.map((field) => (
                 <FieldControl key={field.key} field={field} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
               ))}
-
-              <button className="run-button" type="submit" disabled={status.type === "busy" || !activeManifest?.valid}>
-                {status.type === "busy" ? "生成中..." : "开始生成"}
-              </button>
             </form>
           )}
         </section>
 
-        <aside className="output-panel surface">
+        <aside className="output-panel surface" ref={outputPanelRef}>
           <div className="panel-head">
             <div>
               <span className="section-id">03</span>
@@ -433,6 +435,14 @@ function App() {
       {deleteTarget && (
         <DeleteDialog workflow={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={() => deleteWorkflow(deleteTarget)} />
       )}
+
+      <div className="run-dock">
+        <div className="run-dock-inner">
+          <button className="run-button" type="submit" form="workflow-run-form" disabled={runDisabled}>
+            {status.type === "busy" ? "生成中..." : "开始生成"}
+          </button>
+        </div>
+      </div>
     </main>
   );
 }

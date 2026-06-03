@@ -165,7 +165,8 @@ If a workflow contains multiple MobileUI input nodes with the same `key` and the
 The current wrapper UI uses a neutral black/gray, square-edged tool layout:
 
 - Desktop: left workflow library, center generated form, right declared output/result panel.
-- Mobile: compact top switcher, single-column form, workflow selection through the existing picker.
+- Mobile: compact top switcher, single-column form, workflow selection through the existing picker, and a `run/output` shortcut that jumps to the output panel.
+- The primary `开始生成` action is fixed to the bottom of the viewport on both desktop and mobile, so it stays visible while users scroll and tune parameters.
 - Seed and size controls are mobile-first compact controllers: seed keeps mode/random/reset actions beside the title, manual size keeps width/height steppers on one row, and aspect mode uses four quick ratio buttons (`1:1`, `3:2`, `16:9`, `21:9`) plus one orientation toggle and a compact MP stepper.
 - The visual refresh does not add new workflow behavior; it restyles the existing library, upload, conflict, delete, draft reset, dynamic form, run, and result features.
 
@@ -230,4 +231,4 @@ It keeps the prototype static-only, removes the marketing hero, uses neutral bla
 Dev history is in `doc/devlog.md`.
 
 Agent project instructions are in `AGENTS.md`.
-Compatibility pointer for singular-name tools is in `agent.md`.
+Compatibility pointer for singular-name tools is in `agent.md`. `AGENTS.md` also records the Codex Desktop Browser/Chrome runtime diagnostic path for sessions where standalone browser tool namespaces are not exposed.

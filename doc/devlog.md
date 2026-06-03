@@ -1,3 +1,39 @@
+# devlog 2026-06-04 07:24 Add Browser tool availability agent rule
+
+### Changed
+
+- Added a Codex Browser Tool Availability section to `AGENTS.md`.
+- Documented that Browser/Chrome settings or extension connection status are not enough to prove callable browser control is exposed.
+- Recorded the expected diagnostic path: search active tools, then use the Browser skill with the generic Node REPL JavaScript tool and `browser-client.mjs` to list `agent.browsers`.
+- Updated `agent.md` and README to point future agents to the Browser/Chrome diagnostic rule.
+
+### Verification
+
+- Documentation-only change. No runtime code changed.
+- Custom node files were not changed, so `npm run install:comfy-node` was not required.
+- Complete ComfyUI end-to-end generation through `/api/run` was not run for this entry.
+
+# devlog 2026-06-04 07:18 Fix persistent run action and mobile output shortcut
+
+### Changed
+
+- Replaced the mobile switcher `status` button with a `run/output` shortcut that scrolls to the output panel.
+- Moved the primary `开始生成` submit action out of the end of the generated form and into a fixed bottom dock that stays visible on desktop and mobile.
+- Kept the fixed bottom button wired to the existing workflow form submission path.
+- Reserved bottom page padding so the fixed action does not cover the last controls.
+- Tightened the mobile switcher columns so `run/output` has stable space, and raised modal layering above the fixed run dock.
+- Updated README frontend behavior notes.
+
+### Verification
+
+- `npm test` passes with 11 automated tests.
+- `npm run build` passes as a build check.
+- Started a temporary wrapper on `http://127.0.0.1:3014` with `COMFYUI_URL=http://192.168.124.41:8188`; `/api/config` returned the expected ComfyUI URL and `/api/workflows` returned valid workflow entries.
+- Used a temporary authenticated proxy and headless Chrome screenshots to verify the fixed bottom `开始生成` dock appears on desktop and mobile-width layouts, the mobile switcher shows `run/output` at 500px width, and workflow modals layer above the fixed dock.
+- CSS scan found no green color tokens and no non-zero border radius.
+- Custom node files were not changed, so `npm run install:comfy-node` was not required.
+- Complete ComfyUI end-to-end generation through `/api/run` was not run for this entry.
+
 # devlog 2026-06-04 00:39 Improve mobile seed and size controls
 
 ### Changed
