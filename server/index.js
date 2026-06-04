@@ -5,7 +5,8 @@ import express from "express";
 import multer from "multer";
 import { ComfyClient } from "./comfyClient.js";
 import { extractDeclaredImages, parseWorkflowSchema, patchWorkflow } from "./mobileUi.js";
-import { WorkflowLibrary } from "./workflowLibrary.js";
+import { RunArchive } from "./runArchive.js";
+import { WorkflowLibrary, hashWorkflow } from "./workflowLibrary.js";
 
 const PORT = Number(process.env.PORT || 3008);
 const COMFYUI_URL = process.env.COMFYUI_URL || "http://127.0.0.1:8188";
@@ -20,6 +21,11 @@ const workflowLibrary = new WorkflowLibrary({
   exampleDir: path.join(process.cwd(), "example_workflows"),
   user: BASIC_AUTH_USER,
   comfyUrl: COMFYUI_URL,
+});
+const runArchive = new RunArchive({
+  rootDir: path.join(process.cwd(), "runs"),
+  user: BASIC_AUTH_USER,
+  comfy,
 });
 
 app.use(authenticateBasic);
@@ -141,6 +147,70 @@ app.delete("/api/workflows/:id", async (req, res) => {
   }
 });
 
+app.get("/api/workflows/:id/runs", async (req, res) => {
+  try {
+    res.json(await runArchive.listRuns(req.params.id, req.query));
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/workflows/:id/runs/:runId", async (req, res) => {
+  try {
+    res.json({ run: await runArchive.getRun(req.params.id, req.params.runId) });
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+app.delete("/api/workflows/:id/runs/:runId", async (req, res) => {
+  try {
+    await runArchive.deleteRun(req.params.id, req.params.runId);
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.patch("/api/workflows/:id/runs/:runId/images/:imageId", async (req, res) => {
+  try {
+    const run = await runArchive.setFavorite(req.params.id, req.params.runId, req.params.imageId, req.body?.favorite);
+    res.json({ run });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+app.get("/api/workflows/:id/runs/:runId/images/:imageId/view", async (req, res) => {
+  try {
+    const image = await runArchive.cachedImage(req.params.id, req.params.runId, req.params.imageId, req.query.size);
+    res.setHeader("Content-Type", image.contentType);
+    res.sendFile(path.resolve(image.path));
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+app.get("/api/workflows/:id/runs/:runId/images/:imageId/download", async (req, res) => {
+  try {
+    const image = await runArchive.cachedImage(req.params.id, req.params.runId, req.params.imageId, "original");
+    res.download(path.resolve(image.path), image.filename);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+app.post("/api/workflows/:id/runs/download", async (req, res) => {
+  try {
+    const zip = await runArchive.zipImages(req.params.id, req.body ?? {});
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${zip.filename}"`);
+    zip.stream.pipe(res);
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.post("/api/workflow/schema", upload.single("workflow"), async (req, res) => {
   try {
     const workflow = await readWorkflow(req);
@@ -159,6 +229,7 @@ app.post("/api/workflow/schema", upload.single("workflow"), async (req, res) => 
 app.post("/api/run", upload.any(), async (req, res) => {
   try {
     const workflow = JSON.parse(req.body.workflow || "");
+    const workflowId = req.body.workflowId || "";
     const schema = parseWorkflowSchema(workflow);
     const values = JSON.parse(req.body.values || "{}");
 
@@ -173,16 +244,21 @@ app.post("/api/run", upload.any(), async (req, res) => {
     const promptId = queued.prompt_id;
     const history = await comfy.waitForHistory(promptId);
     const declaredImages = extractDeclaredImages(history, schema.outputs);
+    const workflowEntry = workflowId ? await workflowLibrary.find(workflowId) : null;
+    const run = await runArchive.createRun({
+      workflowId: workflowEntry?.id || workflowId || `adhoc-${hashWorkflow(workflow).slice(0, 8)}`,
+      workflowTitle: workflowEntry?.title || workflowId || "adhoc workflow",
+      workflowHash: workflowEntry?.hash || hashWorkflow(workflow),
+      promptId,
+      schema,
+      values,
+      outputs: declaredImages,
+    });
 
     res.json({
       promptId,
-      outputs: declaredImages.map((output) => ({
-        ...output,
-        images: output.images.map((image) => ({
-          ...image,
-          url: comfy.imageUrl(image),
-        })),
-      })),
+      run,
+      outputs: run.outputs,
     });
   } catch (error) {
     res.status(400).json({ error: error.message });

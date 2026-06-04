@@ -1,3 +1,113 @@
+# devlog 2026-06-04 08:44 Repair mobile result UX
+
+### Changed
+
+- Reworked mobile history results into a single-column full-width result flow scoped to `.history-output .image-grid`.
+- Kept desktop history on the existing dense thumbnail grid.
+- Compressed mobile history filters and download actions into two compact rows:
+  - `最新优先` / `全部输出` / `收藏`
+  - `刷新` / `选中 0` / `全部下载`
+- Shortened the selected/all download button labels for mobile-friendly width.
+- Moved compare A/B labels and remove actions into compact label rows with `移出` buttons beside each filename.
+- Moved compare mode controls plus split, A/B toggle, and opacity controls into the top of the compare stage instead of leaving them as page-level toolbar controls.
+- Restored the mobile `结果` bottom dock to the primary `开始生成` / `生成中...` action so users can keep submitting the same workflow from results.
+- Left backend APIs and custom node files unchanged.
+
+### Verification
+
+- `npm test` passes with 14 automated tests.
+- `npm run build` passes as a build check.
+- CSS scan for `src/styles.css` found no green color tokens and only `border-radius: 0`.
+- Started a temporary wrapper on `http://127.0.0.1:3038` with `COMFYUI_URL=http://192.168.124.41:8188`.
+- `/api/comfy/status` returned `ok:true`.
+- `/api/workflows/project-mobileui-dev` returned a valid schema with 3 inputs and 1 output.
+- Real `/api/run` succeeded with prompt id `1823e3d6-95f2-4f60-a008-9d7ecc9f4d88` and archived run `run-20260604003930-6939b317`.
+- The archived original output endpoint returned `image/png` with 829701 bytes.
+- Browser mobile checks at 390px and 430px confirmed:
+  - history tools and history actions stay at one row each,
+  - latest history cards are single-column full width,
+  - mobile history images use `object-fit: contain` and `aspect-ratio: auto`,
+  - compare mode buttons are inside the stage top-left area,
+  - split controls, A/B toggle, and opacity slider sit at the top of the stage,
+  - A/B labels remain compact with `移出` buttons beside filenames,
+  - A/B, split horizontal/vertical, and opacity modes work,
+  - mobile `结果` bottom dock shows `开始生成`.
+- Clicking mobile `结果` bottom `开始生成` submitted the same workflow again, stayed in `mobile-view-output`, switched to `当前`, and returned new run `run-20260604004411-d854a90e`.
+- The new run appeared first in mobile history as a full-width card using the thumb endpoint with contained display.
+- Custom node files were not changed, so `npm run install:comfy-node` was not required.
+
+# devlog 2026-06-04 08:26 Refine output viewing and mobile navigation
+
+### Changed
+
+- Split result image rendering into current and history variants.
+- `当前` now shows the original image endpoint at natural aspect ratio without square cropping.
+- `历史` keeps stable square thumbnail cells but uses `object-fit: contain` so full images remain visible.
+- Replaced the simple two-image compare view with a compare workspace:
+  - A/B quick switching,
+  - left/right and top/bottom split comparison with drag/range controls,
+  - B-over-A opacity crossfade.
+- Changed mobile output access from a scroll shortcut into real `参数` and `结果` views.
+- Successful runs on mobile now switch to `结果`; the fixed mobile result action is `改参数`.
+- Removed obsolete scroll helper and renamed the upload conflict comparison grid to avoid colliding with output compare naming.
+- Updated README for the new output viewing and mobile navigation behavior.
+- Custom node files were not changed.
+
+### Verification
+
+- `npm test` passes with 14 automated tests.
+- `npm run build` passes as a build check.
+- Started a temporary wrapper on `http://127.0.0.1:3026` with `COMFYUI_URL=http://192.168.124.41:8188`.
+- Used a temporary authenticated browser proxy on `http://127.0.0.1:3027` for Browser verification.
+- Real ComfyUI end-to-end path passed for `project-mobileui-dev`:
+  - `/api/comfy/status` returned `ok:true`.
+  - `/api/workflows/project-mobileui-dev` returned 3 inputs and 1 output.
+  - UI generation completed through `/api/run` with prompt id `ed9671a8-2b83-419d-8717-e6be90c0e703`.
+  - The run was archived as `run-20260604002208-5867c629`.
+  - The archived original image endpoint returned `image/png` with 820395 bytes.
+- Browser checks confirmed:
+  - mobile generation auto-switched to `结果`,
+  - `改参数` returned to the form and hid the output panel,
+  - top `结果` returned to the output panel and hid the form,
+  - current image CSS used `object-fit: contain`, `aspect-ratio: auto`, and `view?size=original`,
+  - history image CSS used a square cell, `object-fit: contain`, and `view?size=thumb`,
+  - compare modes worked for A/B quick switch, left/right split, top/bottom split, and opacity crossfade,
+  - desktop layout still showed the three-column grid and a 420px compare stage.
+- CSS scans found no green color tokens and no non-zero border radius.
+
+# devlog 2026-06-04 07:44 Add output history downloads and AB compare
+
+### Changed
+
+- Added a run archive layer under `runs\<user>\<workflow-id>\<run-id>\run.json` and ignored `runs/` in git.
+- `/api/run` now records successful ComfyUI results as run manifests while continuing to return the current result payload.
+- Added paginated run history APIs for listing, detail, deletion, image favorite updates, image view/download, and selected/all ZIP downloads.
+- Added on-demand image byte caching for thumb/original view and download requests; missing ComfyUI images are marked on the run record and included in ZIP `missing-files.txt`.
+- Added `yazl` for backend ZIP generation.
+- Reworked the output panel into `当前`, `历史`, and `对比` tabs.
+- Added active-workflow history browsing with newest/oldest sort, favorite filter, output filter, run deletion, selected ZIP download, all-matching ZIP download, per-image download, favorites, and 2-image AB comparison.
+- Documented run history storage, APIs, pagination, downloads, and comparison behavior in README.
+- Custom node files were not changed.
+
+### Verification
+
+- `npm test` passes with 14 automated tests.
+- `npm run build` passes as a build check.
+- Added automated run archive coverage for:
+  - multi-output runs and multiple images per output,
+  - paginated listing and `nextCursor`,
+  - newest/oldest sorting plus favorite and output filtering,
+  - deleting a run,
+  - selected ZIP download including a missing-file report.
+- Started a temporary wrapper on `http://127.0.0.1:3020` with `COMFYUI_URL=http://192.168.124.41:8188`.
+- Real ComfyUI end-to-end path passed for `project-mobileui-dev`:
+  - `/api/comfy/status` returned `ok:true`.
+  - `/api/workflows/project-mobileui-dev` returned a valid workflow schema.
+  - `/api/run` returned prompt id `17ba6825-af51-4484-b547-ba0593a099b9`.
+  - The run was archived as `run-20260603234554-eb965f40`.
+  - The archived output image was available through the wrapper image view endpoint with `image/png`.
+  - Selected-image ZIP download returned `application/zip`.
+
 # devlog 2026-06-04 07:24 Add Browser tool availability agent rule
 
 ### Changed

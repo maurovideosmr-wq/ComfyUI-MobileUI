@@ -5,6 +5,8 @@ import "./styles.css";
 const API = "/api";
 const ACTIVE_KEY = "mobileui.activeWorkflowId";
 const DRAFT_PREFIX = "mobileui.draft.";
+const HISTORY_LIMIT = 20;
+const COMPARE_LIMIT = 2;
 const ASPECT_OPTIONS = [
   ["1:1", "1:1 Square"],
   ["3:2", "3:2 Photo"],
@@ -31,7 +33,12 @@ function App() {
   const [result, setResult] = useState(null);
   const [pendingUpload, setPendingUpload] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-  const outputPanelRef = useRef(null);
+  const [outputTab, setOutputTab] = useState("current");
+  const [historyFilters, setHistoryFilters] = useState({ sort: "newest", favorite: false, outputKey: "" });
+  const [history, setHistory] = useState({ runs: [], nextCursor: "", loading: false, error: "" });
+  const [selectedImages, setSelectedImages] = useState({});
+  const [compareImages, setCompareImages] = useState([]);
+  const [mobileView, setMobileView] = useState("params");
 
   useEffect(() => {
     boot();
@@ -47,6 +54,14 @@ function App() {
     if (!active?.manifest) return;
     saveDraft(draftKey(user, active.manifest), active.schema, values);
   }, [user, active?.manifest?.id, active?.manifest?.hash, values]);
+
+  useEffect(() => {
+    if (!active?.manifest?.id) {
+      setHistory({ runs: [], nextCursor: "", loading: false, error: "" });
+      return;
+    }
+    loadHistory({ reset: true, workflowId: active.manifest.id });
+  }, [active?.manifest?.id, historyFilters.sort, historyFilters.favorite, historyFilters.outputKey]);
 
   const inputFields = useMemo(() => uniqueInputFields(active?.schema?.inputs ?? []), [active]);
   const outputFields = useMemo(() => active?.schema?.outputs ?? [], [active]);
@@ -129,6 +144,8 @@ function App() {
   async function loadWorkflow(id) {
     setStatus({ type: "busy", text: "正在载入 workflow..." });
     setResult(null);
+    setSelectedImages({});
+    setCompareImages([]);
     try {
       const response = await fetch(`${API}/workflows/${encodeURIComponent(id)}`);
       const payload = await response.json();
@@ -210,6 +227,7 @@ function App() {
 
     try {
       const form = new FormData();
+      form.append("workflowId", activeManifest.id);
       form.append("workflow", JSON.stringify(active.workflow));
       form.append("values", JSON.stringify(serializableValues(active.schema, values)));
       for (const field of inputFields.filter((item) => item.kind === "image")) {
@@ -222,8 +240,143 @@ function App() {
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error);
       setResult(payload);
+      setOutputTab("current");
+      setMobileView("output");
       setValues((current) => nextSeedValues(active.schema, current));
+      await loadHistory({ reset: true, workflowId: activeManifest.id });
       setStatus({ type: "ok", text: "生成完成。" });
+    } catch (error) {
+      setStatus({ type: "error", text: error.message });
+    }
+  }
+
+  async function loadHistory({ reset = false, workflowId = activeManifest?.id } = {}) {
+    if (!workflowId) return;
+    setHistory((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const params = new URLSearchParams({
+        limit: String(HISTORY_LIMIT),
+        sort: historyFilters.sort,
+      });
+      if (!reset && history.nextCursor) params.set("cursor", history.nextCursor);
+      if (historyFilters.favorite) params.set("favorite", "true");
+      if (historyFilters.outputKey) params.set("outputKey", historyFilters.outputKey);
+      const response = await fetch(`${API}/workflows/${encodeURIComponent(workflowId)}/runs?${params.toString()}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      setHistory((current) => ({
+        runs: reset ? payload.runs ?? [] : [...current.runs, ...(payload.runs ?? [])],
+        nextCursor: payload.nextCursor || "",
+        loading: false,
+        error: "",
+      }));
+    } catch (error) {
+      setHistory((current) => ({ ...current, loading: false, error: error.message }));
+    }
+  }
+
+  async function toggleFavorite(image, favorite) {
+    if (!activeManifest?.id) return;
+    try {
+      const response = await fetch(`${API}/workflows/${encodeURIComponent(activeManifest.id)}/runs/${encodeURIComponent(image.runId)}/images/${encodeURIComponent(image.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ favorite }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      updateRunInState(payload.run);
+    } catch (error) {
+      setStatus({ type: "error", text: error.message });
+    }
+  }
+
+  async function deleteRun(run) {
+    if (!activeManifest?.id || !window.confirm(`删除这次生成记录？${run.createdAt}`)) return;
+    try {
+      const response = await fetch(`${API}/workflows/${encodeURIComponent(activeManifest.id)}/runs/${encodeURIComponent(run.id)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      setHistory((current) => ({ ...current, runs: current.runs.filter((item) => item.id !== run.id) }));
+      setSelectedImages((current) => Object.fromEntries(Object.entries(current).filter(([, ref]) => ref.runId !== run.id)));
+      setCompareImages((current) => current.filter((image) => image.runId !== run.id));
+      if (result?.run?.id === run.id) setResult(null);
+      setStatus({ type: "ok", text: "已删除生成记录。" });
+    } catch (error) {
+      setStatus({ type: "error", text: error.message });
+    }
+  }
+
+  function updateRunInState(run) {
+    setResult((current) => {
+      if (!current?.run || current.run.id !== run.id) return current;
+      return { ...current, run, outputs: run.outputs };
+    });
+    setHistory((current) => ({
+      ...current,
+      runs: current.runs.map((item) => (item.id === run.id ? mergeRunSummary(item, run) : item)),
+    }));
+    setCompareImages((current) => current.map((image) => findRunImage(run, image.id) ?? image));
+  }
+
+  function toggleSelectedImage(image) {
+    const key = imageRefKey(image);
+    setSelectedImages((current) => {
+      const next = { ...current };
+      if (next[key]) delete next[key];
+      else next[key] = { runId: image.runId, imageId: image.id };
+      return next;
+    });
+  }
+
+  function toggleCompareImage(image) {
+    const key = imageRefKey(image);
+    setCompareImages((current) => {
+      if (current.some((item) => imageRefKey(item) === key)) {
+        return current.filter((item) => imageRefKey(item) !== key);
+      }
+      if (current.length >= COMPARE_LIMIT) {
+        setStatus({ type: "error", text: `最多选择 ${COMPARE_LIMIT} 张图进行对比。` });
+        return current;
+      }
+      return [...current, image];
+    });
+    setOutputTab("compare");
+  }
+
+  async function downloadSelectedImages() {
+    const refs = Object.values(selectedImages);
+    if (!activeManifest?.id || refs.length === 0) {
+      setStatus({ type: "error", text: "请先在历史里选择要下载的图片。" });
+      return;
+    }
+    await downloadZip({ imageRefs: refs });
+  }
+
+  async function downloadAllHistoryImages() {
+    await downloadZip({
+      all: true,
+      sort: historyFilters.sort,
+      favorite: historyFilters.favorite,
+      outputKey: historyFilters.outputKey,
+    });
+  }
+
+  async function downloadZip(body) {
+    if (!activeManifest?.id) return;
+    try {
+      const response = await fetch(`${API}/workflows/${encodeURIComponent(activeManifest.id)}/runs/download`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload.error);
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      downloadBlob(blob, filenameFromDisposition(disposition) || `${activeManifest.id}-outputs.zip`);
     } catch (error) {
       setStatus({ type: "error", text: error.message });
     }
@@ -237,12 +390,8 @@ function App() {
     setStatus({ type: "ok", text: "已恢复这个 workflow 的原始默认值。" });
   }
 
-  function scrollToOutput() {
-    outputPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   return (
-    <main className="app-shell">
+    <main className={`app-shell mobile-view-${mobileView}`}>
       <header className="app-bar">
         <div className="brand-block">
           <span className="mark" aria-hidden="true"></span>
@@ -263,9 +412,9 @@ function App() {
       </header>
 
       <div className="mobile-switcher">
-        <button type="button" onClick={() => setPickerOpen(true)}>workflows</button>
+        <button className={mobileView === "params" ? "active" : ""} type="button" onClick={() => setMobileView("params")}>参数</button>
         <strong>{activeManifest?.title || "选择 workflow"}</strong>
-        <button type="button" onClick={scrollToOutput}>run/output</button>
+        <button className={mobileView === "output" ? "active" : ""} type="button" onClick={() => setMobileView("output")}>结果</button>
       </div>
 
       <div className="layout">
@@ -372,45 +521,27 @@ function App() {
           )}
         </section>
 
-        <aside className="output-panel surface" ref={outputPanelRef}>
-          <div className="panel-head">
-            <div>
-              <span className="section-id">03</span>
-              <h2>run / output</h2>
-            </div>
-          </div>
-
-          {outputFields.length > 0 && (
-            <section className="outputs-summary">
-              <span>声明输出</span>
-              {outputFields.map((field) => (
-                <div className="output-item" key={field.key}>
-                  <strong>{field.label}</strong>
-                  {field.description && <small>{field.description}</small>}
-                </div>
-              ))}
-            </section>
-          )}
-
-          {!result && (
-            <section className="result-placeholder">
-              <span className="section-id">result</span>
-              <p>生成完成后，声明输出图片会显示在这里。</p>
-            </section>
-          )}
-
-          {result && (
-            <section className="result-grid">
-              {result.outputs.map((output) => (
-                <article key={output.key} className="result-group">
-                  <h2>{output.label}</h2>
-                  {output.images.map((image) => (
-                    <img key={`${image.filename}-${image.subfolder}`} src={image.url} alt={output.label} />
-                  ))}
-                </article>
-              ))}
-            </section>
-          )}
+        <aside className="output-panel surface">
+          <OutputPanel
+            activeManifest={activeManifest}
+            outputFields={outputFields}
+            result={result}
+            outputTab={outputTab}
+            setOutputTab={setOutputTab}
+            history={history}
+            historyFilters={historyFilters}
+            setHistoryFilters={setHistoryFilters}
+            selectedImages={selectedImages}
+            compareImages={compareImages}
+            onLoadMore={() => loadHistory()}
+            onRefreshHistory={() => loadHistory({ reset: true })}
+            onToggleFavorite={toggleFavorite}
+            onDeleteRun={deleteRun}
+            onToggleSelected={toggleSelectedImage}
+            onToggleCompare={toggleCompareImage}
+            onDownloadSelected={downloadSelectedImages}
+            onDownloadAll={downloadAllHistoryImages}
+          />
         </aside>
       </div>
 
@@ -444,6 +575,406 @@ function App() {
         </div>
       </div>
     </main>
+  );
+}
+
+function OutputPanel({
+  activeManifest,
+  outputFields,
+  result,
+  outputTab,
+  setOutputTab,
+  history,
+  historyFilters,
+  setHistoryFilters,
+  selectedImages,
+  compareImages,
+  onLoadMore,
+  onRefreshHistory,
+  onToggleFavorite,
+  onDeleteRun,
+  onToggleSelected,
+  onToggleCompare,
+  onDownloadSelected,
+  onDownloadAll,
+}) {
+  const selectedCount = Object.keys(selectedImages).length;
+  return (
+    <>
+      <div className="panel-head output-head">
+        <div>
+          <span className="section-id">03</span>
+          <h2>run / output</h2>
+        </div>
+        <div className="output-tabs" role="tablist" aria-label="output views">
+          {["current", "history", "compare"].map((tab) => (
+            <button className={outputTab === tab ? "active" : ""} key={tab} type="button" onClick={() => setOutputTab(tab)}>
+              {tab === "current" ? "当前" : tab === "history" ? "历史" : "对比"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {outputFields.length > 0 && (
+        <section className="outputs-summary">
+          <span>声明输出</span>
+          {outputFields.map((field) => (
+            <div className="output-item" key={field.key}>
+              <strong>{field.label}</strong>
+              {field.description && <small>{field.description}</small>}
+            </div>
+          ))}
+        </section>
+      )}
+
+      {outputTab === "current" && (
+        <CurrentOutputTab
+          result={result}
+          onToggleFavorite={onToggleFavorite}
+          onToggleCompare={onToggleCompare}
+          compareImages={compareImages}
+        />
+      )}
+
+      {outputTab === "history" && (
+        <HistoryOutputTab
+          activeManifest={activeManifest}
+          outputFields={outputFields}
+          history={history}
+          filters={historyFilters}
+          setFilters={setHistoryFilters}
+          selectedImages={selectedImages}
+          selectedCount={selectedCount}
+          compareImages={compareImages}
+          onLoadMore={onLoadMore}
+          onRefresh={onRefreshHistory}
+          onToggleFavorite={onToggleFavorite}
+          onDeleteRun={onDeleteRun}
+          onToggleSelected={onToggleSelected}
+          onToggleCompare={onToggleCompare}
+          onDownloadSelected={onDownloadSelected}
+          onDownloadAll={onDownloadAll}
+        />
+      )}
+
+      {outputTab === "compare" && (
+        <CompareOutputTab compareImages={compareImages} onToggleCompare={onToggleCompare} />
+      )}
+    </>
+  );
+}
+
+function CurrentOutputTab({ result, onToggleFavorite, onToggleCompare, compareImages }) {
+  if (!result) {
+    return (
+      <section className="result-placeholder">
+        <span className="section-id">result</span>
+        <p>生成完成后，声明输出图片会显示在这里。</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="result-grid">
+      <div className="run-meta">
+        <strong>{result.run?.createdAt ? formatTime(result.run.createdAt) : "当前结果"}</strong>
+        <small>{result.promptId}</small>
+      </div>
+      {result.outputs.map((output) => (
+        <article key={output.key} className="result-group">
+          <h2>{output.label}</h2>
+          <div className="image-grid current-images">
+            {output.images.map((image) => (
+              <ImageTile
+                image={image}
+                key={image.id}
+                variant="current"
+                compareImages={compareImages}
+                onToggleFavorite={onToggleFavorite}
+                onToggleCompare={onToggleCompare}
+              />
+            ))}
+          </div>
+        </article>
+      ))}
+    </section>
+  );
+}
+
+function HistoryOutputTab({
+  activeManifest,
+  outputFields,
+  history,
+  filters,
+  setFilters,
+  selectedImages,
+  selectedCount,
+  compareImages,
+  onLoadMore,
+  onRefresh,
+  onToggleFavorite,
+  onDeleteRun,
+  onToggleSelected,
+  onToggleCompare,
+  onDownloadSelected,
+  onDownloadAll,
+}) {
+  return (
+    <section className="history-panel">
+      <div className="history-tools">
+        <select value={filters.sort} onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value }))}>
+          <option value="newest">最新优先</option>
+          <option value="oldest">最旧优先</option>
+        </select>
+        <select value={filters.outputKey} onChange={(event) => setFilters((current) => ({ ...current, outputKey: event.target.value }))}>
+          <option value="">全部输出</option>
+          {outputFields.map((field) => <option key={field.key} value={field.key}>{field.label}</option>)}
+        </select>
+        <label className="filter-check">
+          <input type="checkbox" checked={filters.favorite} onChange={(event) => setFilters((current) => ({ ...current, favorite: event.target.checked }))} />
+          收藏
+        </label>
+      </div>
+
+      <div className="history-actions">
+        <button type="button" onClick={onRefresh} disabled={!activeManifest || history.loading}>刷新</button>
+        <button type="button" onClick={onDownloadSelected} disabled={selectedCount === 0}>选中 {selectedCount}</button>
+        <button type="button" onClick={onDownloadAll} disabled={!activeManifest || history.runs.length === 0}>全部下载</button>
+      </div>
+
+      {history.error && <p className="empty-copy">{history.error}</p>}
+      {!history.loading && history.runs.length === 0 && <p className="empty-copy">这个 workflow 还没有历史结果。</p>}
+
+      <div className="history-list">
+        {history.runs.map((run) => (
+          <RunCard
+            key={run.id}
+            run={run}
+            selectedImages={selectedImages}
+            compareImages={compareImages}
+            onToggleFavorite={onToggleFavorite}
+            onDeleteRun={onDeleteRun}
+            onToggleSelected={onToggleSelected}
+            onToggleCompare={onToggleCompare}
+          />
+        ))}
+      </div>
+
+      {history.nextCursor && (
+        <button className="load-more" type="button" onClick={onLoadMore} disabled={history.loading}>
+          {history.loading ? "读取中..." : "加载更多"}
+        </button>
+      )}
+      {history.loading && !history.nextCursor && <p className="empty-copy">读取历史中...</p>}
+    </section>
+  );
+}
+
+function RunCard({ run, selectedImages, compareImages, onToggleFavorite, onDeleteRun, onToggleSelected, onToggleCompare }) {
+  return (
+    <article className="run-card">
+      <div className="run-card-head">
+        <div>
+          <strong>{formatTime(run.createdAt)}</strong>
+          <small>{run.imageCount} 张 / 收藏 {run.favoriteCount} / 缺失 {run.missingCount}</small>
+        </div>
+        <button className="danger-button" type="button" onClick={() => onDeleteRun(run)}>删除</button>
+      </div>
+      <details>
+        <summary>参数快照</summary>
+        <InputSummary items={run.inputSummary} />
+      </details>
+      {run.outputs.map((output) => (
+        <section className="history-output" key={output.key}>
+          <h2>{output.label}</h2>
+          <div className="image-grid">
+            {output.images.map((image) => (
+              <ImageTile
+                image={image}
+                key={image.id}
+                variant="history"
+                selected={Boolean(selectedImages[imageRefKey(image)])}
+                compareImages={compareImages}
+                onToggleSelected={onToggleSelected}
+                onToggleFavorite={onToggleFavorite}
+                onToggleCompare={onToggleCompare}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </article>
+  );
+}
+
+function CompareOutputTab({ compareImages, onToggleCompare }) {
+  const [mode, setMode] = useState("split");
+  const [activeImage, setActiveImage] = useState("A");
+  const [splitAxis, setSplitAxis] = useState("vertical");
+  const [splitValue, setSplitValue] = useState(50);
+  const [opacity, setOpacity] = useState(50);
+  const stageRef = useRef(null);
+
+  if (compareImages.length === 0) {
+    return (
+      <section className="result-placeholder">
+        <span className="section-id">compare</span>
+        <p>从当前结果或历史里选择 2 张图进行 AB 对比。</p>
+      </section>
+    );
+  }
+  if (compareImages.length < 2) {
+    const image = compareImages[0];
+    return (
+      <section className="compare-panel">
+        <div className="compare-labels single">
+          <span>
+            <strong>A</strong>
+            <em>{image.filename}</em>
+            <button type="button" onClick={() => onToggleCompare(image)}>移出</button>
+          </span>
+        </div>
+        <div className="compare-stage single">
+          <img src={image.url} alt={image.filename} />
+        </div>
+        <p className="empty-copy">再选择 1 张图即可进行 AB 对比。</p>
+      </section>
+    );
+  }
+
+  const [a, b] = compareImages;
+  const clipStyle = splitAxis === "vertical"
+    ? { clipPath: `inset(0 ${100 - splitValue}% 0 0)` }
+    : { clipPath: `inset(0 0 ${100 - splitValue}% 0)` };
+  const dividerStyle = splitAxis === "vertical" ? { left: `${splitValue}%` } : { top: `${splitValue}%` };
+
+  function updateSplitFromPointer(event) {
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const raw = splitAxis === "vertical"
+      ? ((event.clientX - rect.left) / rect.width) * 100
+      : ((event.clientY - rect.top) / rect.height) * 100;
+    setSplitValue(clamp(raw, 0, 100));
+  }
+
+  function startDrag(event) {
+    updateSplitFromPointer(event);
+    const move = (moveEvent) => updateSplitFromPointer(moveEvent);
+    const stop = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  return (
+    <section className="compare-panel">
+      <div className="compare-labels">
+        <span>
+          <strong>A</strong>
+          <em>{a.filename}</em>
+          <button type="button" onClick={() => onToggleCompare(a)}>移出</button>
+        </span>
+        <span>
+          <strong>B</strong>
+          <em>{b.filename}</em>
+          <button type="button" onClick={() => onToggleCompare(b)}>移出</button>
+        </span>
+      </div>
+
+      <div className={`compare-stage ${mode} ${splitAxis}`} ref={stageRef} onPointerDown={mode === "split" ? startDrag : undefined}>
+        <div className="compare-stage-controls" onPointerDown={(event) => event.stopPropagation()}>
+          <div className="segmented compare-mode-control">
+            <button className={mode === "toggle" ? "active" : ""} type="button" onClick={() => setMode("toggle")}>A/B</button>
+            <button className={mode === "split" ? "active" : ""} type="button" onClick={() => setMode("split")}>分割</button>
+            <button className={mode === "fade" ? "active" : ""} type="button" onClick={() => setMode("fade")}>透明</button>
+          </div>
+          <div className="compare-operation">
+            {mode === "toggle" && (
+              <div className="segmented">
+                <button className={activeImage === "A" ? "active" : ""} type="button" onClick={() => setActiveImage("A")}>A</button>
+                <button className={activeImage === "B" ? "active" : ""} type="button" onClick={() => setActiveImage("B")}>B</button>
+              </div>
+            )}
+            {mode === "split" && (
+              <>
+                <div className="segmented">
+                  <button className={splitAxis === "vertical" ? "active" : ""} type="button" onClick={() => setSplitAxis("vertical")}>左右</button>
+                  <button className={splitAxis === "horizontal" ? "active" : ""} type="button" onClick={() => setSplitAxis("horizontal")}>上下</button>
+                </div>
+                <label>
+                  <span>{Math.round(splitValue)}%</span>
+                  <input type="range" min="0" max="100" value={splitValue} onChange={(event) => setSplitValue(Number(event.target.value))} />
+                </label>
+              </>
+            )}
+            {mode === "fade" && (
+              <label>
+                <span>B {Math.round(opacity)}%</span>
+                <input type="range" min="0" max="100" value={opacity} onChange={(event) => setOpacity(Number(event.target.value))} />
+              </label>
+            )}
+          </div>
+        </div>
+        {mode === "toggle" ? (
+          <img src={activeImage === "A" ? a.url : b.url} alt={activeImage === "A" ? a.filename : b.filename} />
+        ) : (
+          <>
+            <img className="compare-image-a" src={a.url} alt={a.filename} />
+            <img
+              className="compare-image-b"
+              src={b.url}
+              alt={b.filename}
+              style={mode === "fade" ? { opacity: opacity / 100 } : clipStyle}
+            />
+            {mode === "split" && <span className="compare-divider" style={dividerStyle}></span>}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function ImageTile({ image, variant = "history", selected = false, compareImages = [], onToggleSelected, onToggleFavorite, onToggleCompare }) {
+  const inCompare = compareImages.some((item) => imageRefKey(item) === imageRefKey(image));
+  const imageUrl = variant === "current" ? image.url : image.thumbUrl || image.url;
+  return (
+    <figure className={`image-tile ${variant} ${image.missing ? "missing" : ""}`}>
+      <img src={imageUrl} alt={image.filename} loading="lazy" />
+      <figcaption>
+        <strong>{image.filename}</strong>
+        <small>{image.outputLabel || image.outputKey}</small>
+      </figcaption>
+      <div className="image-actions">
+        {onToggleSelected && (
+          <button className={selected ? "active" : ""} type="button" onClick={() => onToggleSelected(image)}>
+            {selected ? "已选" : "选择"}
+          </button>
+        )}
+        <button className={image.favorite ? "active" : ""} type="button" onClick={() => onToggleFavorite(image, !image.favorite)}>
+          {image.favorite ? "已收藏" : "收藏"}
+        </button>
+        <button className={inCompare ? "active" : ""} type="button" onClick={() => onToggleCompare(image)}>
+          {inCompare ? "对比中" : "对比"}
+        </button>
+        <a className="button-link" href={image.downloadUrl}>下载</a>
+      </div>
+      {image.missing && <small className="warning">ComfyUI 原图不可用。</small>}
+    </figure>
+  );
+}
+
+function InputSummary({ items = [] }) {
+  return (
+    <dl className="input-summary">
+      {items.map((item) => (
+        <div key={`${item.kind}:${item.key}`}>
+          <dt>{item.label}</dt>
+          <dd>{item.summary || "默认"}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -530,7 +1061,7 @@ function ConflictDialog({ pending, onResolve }) {
       <section className="confirm-modal">
         <h2>发现 workflow 冲突</h2>
         <p>{pending.conflict.message}</p>
-        <div className="compare-grid">
+        <div className="conflict-grid">
           <div>
             <span>已有</span>
             <strong>{pending.existing.title}</strong>
@@ -994,6 +1525,50 @@ function nextSeedValues(schema, values) {
     if (mode === "randomize") next[field.key] = { ...current, seed: Math.floor(Math.random() * Number.MAX_SAFE_INTEGER) };
   }
   return next;
+}
+
+function imageRefKey(image) {
+  return `${image.runId}:${image.id}`;
+}
+
+function mergeRunSummary(summary, run) {
+  const images = run.outputs.flatMap((output) => output.images ?? []);
+  return {
+    ...summary,
+    ...run,
+    imageCount: images.length,
+    favoriteCount: images.filter((image) => image.favorite).length,
+    missingCount: images.filter((image) => image.missing).length,
+  };
+}
+
+function findRunImage(run, imageId) {
+  for (const output of run.outputs ?? []) {
+    const image = output.images?.find((candidate) => candidate.id === imageId);
+    if (image) return image;
+  }
+  return null;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function filenameFromDisposition(value) {
+  const match = String(value || "").match(/filename="?([^"]+)"?/i);
+  return match?.[1] || "";
+}
+
+function formatTime(value) {
+  if (!value) return "";
+  return new Date(value).toLocaleString();
 }
 
 createRoot(document.getElementById("root")).render(<App />);

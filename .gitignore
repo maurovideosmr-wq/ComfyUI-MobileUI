@@ -3,6 +3,7 @@ dist/
 .uploads/
 workflows/
 !workflows/.gitkeep
+runs/
 
 npm-debug.log*
 .DS_Store

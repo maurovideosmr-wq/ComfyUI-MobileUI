@@ -75,6 +75,17 @@ export class ComfyClient {
     });
     return `${this.baseUrl}/view?${params.toString()}`;
   }
+
+  async fetchImage(image) {
+    const response = await fetch(this.imageUrl(image));
+    if (!response.ok) {
+      throw new Error(`读取 ComfyUI 图片失败：${response.status}`);
+    }
+    return {
+      bytes: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") || "image/png",
+    };
+  }
 }
 
 function sleep(ms) {

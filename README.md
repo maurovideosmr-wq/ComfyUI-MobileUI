@@ -165,10 +165,48 @@ If a workflow contains multiple MobileUI input nodes with the same `key` and the
 The current wrapper UI uses a neutral black/gray, square-edged tool layout:
 
 - Desktop: left workflow library, center generated form, right declared output/result panel.
-- Mobile: compact top switcher, single-column form, workflow selection through the existing picker, and a `run/output` shortcut that jumps to the output panel.
-- The primary `开始生成` action is fixed to the bottom of the viewport on both desktop and mobile, so it stays visible while users scroll and tune parameters.
+- Mobile: compact top switcher with real `参数` and `结果` views, single-column form, and workflow selection through the existing picker. A successful run automatically switches to `结果`; the top `参数` switch returns to the form.
+- The primary `开始生成` action is fixed to the bottom of the viewport on desktop and mobile. Mobile `结果` keeps this action visible so users can keep generating the same workflow without leaving results.
+- Output panel tabs:
+  - `当前`: latest run result grouped by declared MobileUI output, shown from the original image endpoint at its natural aspect ratio without cropping.
+  - `历史`: paged run history for the active workflow with newest/oldest sorting, favorite filtering, output filtering, deletion, selected ZIP download, and all-matching ZIP download. Desktop keeps the dense thumbnail grid; mobile shows each history image as a full-width single-column card with contained, uncropped preview.
+  - `对比`: 2-image workspace from current or historical results with A/B quick switching, draggable left/right or top/bottom split, and opacity crossfade. Mobile keeps A/B labels compact and places mode plus split/toggle/opacity controls at the top of the compare stage.
 - Seed and size controls are mobile-first compact controllers: seed keeps mode/random/reset actions beside the title, manual size keeps width/height steppers on one row, and aspect mode uses four quick ratio buttons (`1:1`, `3:2`, `16:9`, `21:9`) plus one orientation toggle and a compact MP stepper.
-- The visual refresh does not add new workflow behavior; it restyles the existing library, upload, conflict, delete, draft reset, dynamic form, run, and result features.
+- The visual refresh preserves existing workflow behavior while adding run archive browsing, download, and comparison features.
+
+## Run History And Downloads
+
+Each successful `/api/run` creates a local run manifest:
+
+```text
+runs\<basic-auth-user>\<workflow-id>\<run-id>\run.json
+```
+
+The `runs` folder is ignored by git. Run manifests record:
+
+- workflow id/title/hash
+- ComfyUI `promptId`
+- creation time
+- non-binary input snapshot summaries
+- declared output groups
+- each image's ComfyUI `filename`, `subfolder`, and `type`
+- favorite, missing, and cache metadata
+
+Images are still sourced from ComfyUI's own `/view` output path. The wrapper caches image bytes only when a thumbnail/original view or download is requested. If ComfyUI no longer has the image, the history image is marked missing and ZIP downloads include a `missing-files.txt` report.
+
+History endpoints:
+
+```text
+GET    /api/workflows/:id/runs
+GET    /api/workflows/:id/runs/:runId
+DELETE /api/workflows/:id/runs/:runId
+PATCH  /api/workflows/:id/runs/:runId/images/:imageId
+GET    /api/workflows/:id/runs/:runId/images/:imageId/view?size=thumb|original
+GET    /api/workflows/:id/runs/:runId/images/:imageId/download
+POST   /api/workflows/:id/runs/download
+```
+
+Run history is paginated with a default page size of 20 and a maximum page size of 50.
 
 ## Workflow
 
@@ -180,7 +218,8 @@ The current wrapper UI uses a neutral black/gray, square-edged tool layout:
 6. Upload the JSON or place it in the project workflow folder.
 7. Pick it from the workflow picker.
 8. Fill the generated mobile form.
-9. Run and view the returned image.
+9. Run and view the returned image in `当前`.
+10. Use `历史` to browse previous runs, download single images or ZIP batches, favorite images, delete runs, and select two images for `对比`.
 
 ## Scripts
 
@@ -220,12 +259,14 @@ It keeps the prototype static-only, removes the marketing hero, uses neutral bla
 
 ## Verification
 
-- `npm test` runs automated tests for the wrapper logic.
+- `npm test` runs automated tests for the wrapper logic and run archive behavior.
 - `npm run build` is only a build check. It does not prove the ComfyUI workflow can run.
 - `/api/comfy/status` works with `COMFYUI_URL=http://192.168.124.41:8188`.
 - `/api/comfy/models/vae`, `/api/comfy/models/text_encoders`, `/api/comfy/models/diffusion_models`, and `/api/comfy/object-info/KSampler` proxy ComfyUI options for selector controls.
 - `/api/workflows` lists project and uploaded workflow library entries.
-- `mobileUI_dev.json` parses and runs successfully through the wrapper.
+- `/api/workflows/:id/runs` lists paginated generated output history for the active workflow.
+- `mobileUI_dev.json` parses and runs successfully through the wrapper, records a run manifest, serves the archived image through the wrapper image endpoint, and can download selected history images as a ZIP.
+- Browser verification confirmed mobile `参数`/`结果` view switching, uncropped current original image display, full-width mobile history cards, compact two-row history tools, stage-top compare controls, all three compare modes, and mobile `结果` continuous generation from the bottom `开始生成` action.
 - Complete testing means the real end-to-end path succeeds: status check, workflow schema parse, `/api/run`, and a real ComfyUI output image URL.
 
 Dev history is in `doc/devlog.md`.
