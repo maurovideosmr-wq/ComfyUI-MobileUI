@@ -38,6 +38,7 @@ function App() {
   const [history, setHistory] = useState({ runs: [], nextCursor: "", loading: false, error: "" });
   const [selectedImages, setSelectedImages] = useState({});
   const [compareImages, setCompareImages] = useState([]);
+  const [previewImage, setPreviewImage] = useState(null);
   const [mobileView, setMobileView] = useState("params");
 
   useEffect(() => {
@@ -300,6 +301,7 @@ function App() {
       setHistory((current) => ({ ...current, runs: current.runs.filter((item) => item.id !== run.id) }));
       setSelectedImages((current) => Object.fromEntries(Object.entries(current).filter(([, ref]) => ref.runId !== run.id)));
       setCompareImages((current) => current.filter((image) => image.runId !== run.id));
+      setPreviewImage((current) => (current?.runId === run.id ? null : current));
       if (result?.run?.id === run.id) setResult(null);
       setStatus({ type: "ok", text: "已删除生成记录。" });
     } catch (error) {
@@ -539,6 +541,7 @@ function App() {
             onDeleteRun={deleteRun}
             onToggleSelected={toggleSelectedImage}
             onToggleCompare={toggleCompareImage}
+            onPreviewImage={setPreviewImage}
             onDownloadSelected={downloadSelectedImages}
             onDownloadAll={downloadAllHistoryImages}
           />
@@ -565,6 +568,10 @@ function App() {
 
       {deleteTarget && (
         <DeleteDialog workflow={deleteTarget} onCancel={() => setDeleteTarget(null)} onConfirm={() => deleteWorkflow(deleteTarget)} />
+      )}
+
+      {previewImage && (
+        <ImagePreviewModal image={previewImage} onClose={() => setPreviewImage(null)} />
       )}
 
       <div className="run-dock">
@@ -595,6 +602,7 @@ function OutputPanel({
   onDeleteRun,
   onToggleSelected,
   onToggleCompare,
+  onPreviewImage,
   onDownloadSelected,
   onDownloadAll,
 }) {
@@ -632,6 +640,7 @@ function OutputPanel({
           result={result}
           onToggleFavorite={onToggleFavorite}
           onToggleCompare={onToggleCompare}
+          onPreview={onPreviewImage}
           compareImages={compareImages}
         />
       )}
@@ -652,6 +661,7 @@ function OutputPanel({
           onDeleteRun={onDeleteRun}
           onToggleSelected={onToggleSelected}
           onToggleCompare={onToggleCompare}
+          onPreview={onPreviewImage}
           onDownloadSelected={onDownloadSelected}
           onDownloadAll={onDownloadAll}
         />
@@ -664,7 +674,7 @@ function OutputPanel({
   );
 }
 
-function CurrentOutputTab({ result, onToggleFavorite, onToggleCompare, compareImages }) {
+function CurrentOutputTab({ result, onToggleFavorite, onToggleCompare, onPreview, compareImages }) {
   if (!result) {
     return (
       <section className="result-placeholder">
@@ -692,6 +702,7 @@ function CurrentOutputTab({ result, onToggleFavorite, onToggleCompare, compareIm
                 compareImages={compareImages}
                 onToggleFavorite={onToggleFavorite}
                 onToggleCompare={onToggleCompare}
+                onPreview={onPreview}
               />
             ))}
           </div>
@@ -716,6 +727,7 @@ function HistoryOutputTab({
   onDeleteRun,
   onToggleSelected,
   onToggleCompare,
+  onPreview,
   onDownloadSelected,
   onDownloadAll,
 }) {
@@ -756,6 +768,7 @@ function HistoryOutputTab({
             onDeleteRun={onDeleteRun}
             onToggleSelected={onToggleSelected}
             onToggleCompare={onToggleCompare}
+            onPreview={onPreview}
           />
         ))}
       </div>
@@ -770,7 +783,7 @@ function HistoryOutputTab({
   );
 }
 
-function RunCard({ run, selectedImages, compareImages, onToggleFavorite, onDeleteRun, onToggleSelected, onToggleCompare }) {
+function RunCard({ run, selectedImages, compareImages, onToggleFavorite, onDeleteRun, onToggleSelected, onToggleCompare, onPreview }) {
   return (
     <article className="run-card">
       <div className="run-card-head">
@@ -798,6 +811,7 @@ function RunCard({ run, selectedImages, compareImages, onToggleFavorite, onDelet
                 onToggleSelected={onToggleSelected}
                 onToggleFavorite={onToggleFavorite}
                 onToggleCompare={onToggleCompare}
+                onPreview={onPreview}
               />
             ))}
           </div>
@@ -936,12 +950,21 @@ function CompareOutputTab({ compareImages, onToggleCompare }) {
   );
 }
 
-function ImageTile({ image, variant = "history", selected = false, compareImages = [], onToggleSelected, onToggleFavorite, onToggleCompare }) {
+function ImageTile({ image, variant = "history", selected = false, compareImages = [], onToggleSelected, onToggleFavorite, onToggleCompare, onPreview }) {
   const inCompare = compareImages.some((item) => imageRefKey(item) === imageRefKey(image));
   const imageUrl = variant === "current" ? image.url : image.thumbUrl || image.url;
+  const canPreview = Boolean(onPreview && !image.missing);
   return (
     <figure className={`image-tile ${variant} ${image.missing ? "missing" : ""}`}>
-      <img src={imageUrl} alt={image.filename} loading="lazy" />
+      {canPreview ? (
+        <button className="image-preview-button" type="button" onClick={() => onPreview(image)} aria-label={`预览 ${image.filename}`}>
+          <img src={imageUrl} alt={image.filename} loading="lazy" />
+        </button>
+      ) : (
+        <span className="image-preview-static">
+          <img src={imageUrl} alt={image.filename} loading="lazy" />
+        </span>
+      )}
       <figcaption>
         <strong>{image.filename}</strong>
         <small>{image.outputLabel || image.outputKey}</small>
@@ -962,6 +985,29 @@ function ImageTile({ image, variant = "history", selected = false, compareImages
       </div>
       {image.missing && <small className="warning">ComfyUI 原图不可用。</small>}
     </figure>
+  );
+}
+
+function ImagePreviewModal({ image, onClose }) {
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <div className="image-preview-modal" role="dialog" aria-modal="true" aria-label={`预览 ${image.filename}`} onClick={onClose}>
+      <button className="image-preview-close" type="button" onClick={onClose}>关闭</button>
+      <figure className="image-preview-frame" onClick={(event) => event.stopPropagation()}>
+        <img src={image.url} alt={image.filename} />
+        <figcaption>
+          <strong>{image.filename}</strong>
+          <small>{image.outputLabel || image.outputKey}</small>
+        </figcaption>
+      </figure>
+    </div>
   );
 }
 

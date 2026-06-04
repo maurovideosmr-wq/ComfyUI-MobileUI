@@ -1,3 +1,36 @@
+# devlog 2026-06-04 09:12 Add image tap preview lightbox
+
+### Changed
+
+- Added a front-end only full-screen image preview lightbox for `当前` and `历史` result images.
+- Tapping or clicking the image area opens the preview; image action buttons keep their existing behavior and do not open it.
+- History cards still render thumbnails in the result flow, while the preview opens the original image endpoint.
+- The preview uses a full-screen dark overlay above the run dock and existing modals, `object-fit: contain`, a close button, overlay click close, and Escape close.
+- Left the compare tab without preview triggers so split dragging and compare controls keep their current touch behavior.
+- Updated README for the current/history preview behavior.
+- Backend APIs and custom node files were not changed.
+
+### Verification
+
+- `npm test` passes with 14 automated tests.
+- `npm run build` passes as a build check.
+- CSS scan for `src/styles.css` found no green color tokens and only `border-radius: 0`.
+- Started a temporary wrapper on `http://127.0.0.1:3038` with `COMFYUI_URL=http://192.168.124.41:8188`.
+- `/api/comfy/status` returned `ok:true`.
+- `/api/workflows/project-mobileui-dev` returned a valid schema with 3 inputs and 1 output.
+- Real `/api/run` succeeded with prompt id `7d08ae3c-8212-4225-866d-340b504c1dac` and archived run `run-20260604011355-3c1f82a0`.
+- The archived original output endpoint returned `image/png` with 773788 bytes.
+- Browser mobile checks at 390px and 430px confirmed:
+  - current image tap opens a full-screen preview using the original endpoint,
+  - history image tap opens a full-screen preview using the original endpoint while the card keeps the thumb endpoint,
+  - preview image uses `object-fit: contain`,
+  - preview z-index is above the bottom run dock,
+  - close button, overlay click, and Escape all close the preview,
+  - history image action buttons do not open the preview,
+  - compare tab has no preview trigger and clicking the split stage does not open the preview.
+- A UI-triggered mobile run succeeded and stayed in `mobile-view-output`, returning current image `/api/workflows/project-mobileui-dev/runs/run-20260604011437-3bc69de2/images/img-0001/view?size=original`.
+- Custom node files were not changed, so `npm run install:comfy-node` was not required.
+
 # devlog 2026-06-04 08:44 Repair mobile result UX
 
 ### Changed
