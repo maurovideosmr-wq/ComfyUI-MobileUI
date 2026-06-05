@@ -13,8 +13,12 @@ const TYPES = {
   DIFFUSION: "MobileUI Diffusion Model Selector",
   SAMPLER: "MobileUI Sampler Selector",
   SCHEDULER: "MobileUI Scheduler Selector",
+  LORA_STACK: "MobileUI LoRA Stack Input",
+  TRIGGER_TOGGLE: "MobileUI Trigger Words Toggle",
   METADATA: "MobileUI Workflow Metadata",
 };
+
+const LORA_PATTERN = /<lora:([^:>]+):([-+]?\d*\.?\d+)(?::([-+]?\d*\.?\d+))?>/gi;
 
 export const ASPECT_RATIOS = {
   "1:1": { label: "1:1 Square", width: 1, height: 1 },
@@ -110,6 +114,20 @@ export function patchWorkflow(workflow, schema, values) {
   normalizeDeclarationNodes(next, schema);
 
   for (const field of schema.inputs) {
+    if (field.kind === "lora_stack") {
+      next[field.nodeId].inputs.default_lora_syntax = resolveLoraSyntax(field, values[field.key]);
+      continue;
+    }
+
+    if (field.kind === "trigger_words_toggle") {
+      const value = values[field.key] ?? {};
+      next[field.nodeId].inputs.group_mode = toBool(value.groupMode ?? field.groupMode);
+      next[field.nodeId].inputs.default_active = toBool(value.defaultActive ?? field.defaultActive);
+      next[field.nodeId].inputs.allow_strength_adjustment = false;
+      next[field.nodeId].inputs.toggle_state_json = JSON.stringify(resolveTriggerToggleState(value.groups ?? value.items ?? []));
+      continue;
+    }
+
     if (field.kind === "size") {
       const size = resolveSize(field, values[field.key]);
       next[field.nodeId].inputs.default_width = size.width;
@@ -210,6 +228,17 @@ function normalizeDeclarationNodes(workflow, schema) {
       node.inputs.step = size.step;
     }
     if (field.kind === "number") node.inputs.default_value = resolveNumber(field, node.inputs.default_value);
+    if (field.kind === "lora_stack") {
+      node.inputs.default_lora_syntax = resolveLoraSyntax({ ...field, required: false }, { entries: parseLoraSyntax(node.inputs.default_lora_syntax) });
+      node.inputs.default_strength = clampNumber(toNumber(node.inputs.default_strength, field.defaultStrength), field.minStrength, field.maxStrength);
+      node.inputs.max_loras = Math.max(1, Math.trunc(toNumber(node.inputs.max_loras, field.maxLoras)));
+    }
+    if (field.kind === "trigger_words_toggle") {
+      node.inputs.group_mode = toBool(node.inputs.group_mode);
+      node.inputs.default_active = toBool(node.inputs.default_active);
+      node.inputs.allow_strength_adjustment = false;
+      node.inputs.toggle_state_json = JSON.stringify(resolveTriggerToggleState(parseJsonArray(node.inputs.toggle_state_json)));
+    }
   }
 }
 
@@ -290,6 +319,70 @@ export function resolveNumber(field, submitted) {
   const clamped = clampNumber(value, field.min, field.max);
   if (field.numberType === "int") return Math.trunc(clamped);
   return clamped;
+}
+
+export function parseLoraSyntax(value) {
+  const text = String(value ?? "");
+  const entries = [];
+  LORA_PATTERN.lastIndex = 0;
+  let match;
+  while ((match = LORA_PATTERN.exec(text)) !== null) {
+    entries.push({
+      name: match[1].trim(),
+      strength: toNumber(match[2], 1),
+      clipStrength: match[3] === undefined ? null : toNumber(match[3], toNumber(match[2], 1)),
+      active: true,
+    });
+  }
+  return entries;
+}
+
+export function resolveLoraSyntax(field, submitted) {
+  const rawEntries = Array.isArray(submitted?.entries)
+    ? submitted.entries
+    : Array.isArray(submitted)
+      ? submitted
+      : parseLoraSyntax(typeof submitted === "string" ? submitted : field.defaultLoraSyntax);
+  const seen = new Set();
+  const entries = [];
+  for (const raw of rawEntries) {
+    const name = normalizeLoraName(raw?.name);
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    if (raw?.active === false) continue;
+    const strength = clampNumber(toNumber(raw?.strength, field.defaultStrength), field.minStrength, field.maxStrength);
+    entries.push(`<lora:${name}:${formatStrength(strength)}>`);
+    if (entries.length >= field.maxLoras) break;
+  }
+  if (field.required && entries.length === 0) {
+    throw new Error(`${field.label} 是必填项。`);
+  }
+  return entries.join(" ");
+}
+
+function resolveTriggerToggleState(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const text = String(item?.text ?? "").trim();
+      if (!text) return null;
+      const next = {
+        text,
+        active: item?.active !== false,
+      };
+      const items = Array.isArray(item?.items)
+        ? item.items
+            .map((child) => {
+              const childText = String(child?.text ?? "").trim();
+              if (!childText) return null;
+              return { text: childText, active: child?.active !== false };
+            })
+            .filter(Boolean)
+        : [];
+      if (items.length > 0) next.items = items;
+      return next;
+    })
+    .filter(Boolean);
 }
 
 export function extractDeclaredImages(history, outputs) {
@@ -473,6 +566,35 @@ function parseDeclaration(nodeId, node) {
     };
   }
 
+  if (node.class_type === TYPES.LORA_STACK) {
+    const minStrength = toNumber(inputs.min_strength, -10);
+    const maxStrength = toNumber(inputs.max_strength, 10);
+    return {
+      ...common,
+      kind: "lora_stack",
+      defaultLoraSyntax: String(inputs.default_lora_syntax ?? ""),
+      defaultStrength: clampNumber(toNumber(inputs.default_strength, 1), minStrength, maxStrength),
+      minStrength,
+      maxStrength,
+      strengthStep: Math.max(0.001, toNumber(inputs.strength_step, 0.05)),
+      maxLoras: Math.max(1, Math.trunc(toNumber(inputs.max_loras, 20))),
+      required: toBool(inputs.required),
+      selfTarget: { nodeId, input: "default_lora_syntax" },
+    };
+  }
+
+  if (node.class_type === TYPES.TRIGGER_TOGGLE) {
+    return {
+      ...common,
+      kind: "trigger_words_toggle",
+      groupMode: toBool(inputs.group_mode ?? true),
+      defaultActive: toBool(inputs.default_active ?? true),
+      allowStrengthAdjustment: false,
+      toggleState: resolveTriggerToggleState(parseJsonArray(inputs.toggle_state_json)),
+      selfTarget: { nodeId, input: "toggle_state_json" },
+    };
+  }
+
   if (node.class_type === TYPES.METADATA) {
     return {
       nodeId,
@@ -538,6 +660,23 @@ function parseTags(value) {
 function resolveStringValue(value, fallback) {
   if (typeof value === "object" && value !== null && "value" in value) return String(value.value ?? fallback ?? "");
   return String(value ?? fallback ?? "");
+}
+
+function parseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(String(value ?? "[]"));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeLoraName(value) {
+  return String(value ?? "").trim().replace(/\\/g, "/");
+}
+
+function formatStrength(value) {
+  return Number(value).toFixed(2);
 }
 
 function snapToStep(value, step) {

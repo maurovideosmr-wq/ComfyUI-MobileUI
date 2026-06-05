@@ -1,5 +1,7 @@
 import folder_paths
 import comfy.samplers
+import json
+import re
 from nodes import LoadImage, PreviewImage
 
 
@@ -325,6 +327,169 @@ class MobileUISchedulerSelector:
         return (default_scheduler,)
 
 
+class MobileUILoraStackInput:
+    RETURN_TYPES = (ANY_TYPE,)
+    RETURN_NAMES = ("lora_syntax",)
+    FUNCTION = "emit"
+    CATEGORY = CATEGORY
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {"required": {
+            "key": ("STRING", {"default": "loras"}),
+            "label": ("STRING", {"default": "LoRA"}),
+            "description": ("STRING", {"default": "", "multiline": True}),
+            "default_lora_syntax": ("STRING", {"default": "", "multiline": True}),
+            "default_strength": ("FLOAT", {"default": 1.0, "min": -10.0, "max": 10.0, "step": 0.05}),
+            "min_strength": ("FLOAT", {"default": -10.0, "min": -100.0, "max": 100.0, "step": 0.05}),
+            "max_strength": ("FLOAT", {"default": 10.0, "min": -100.0, "max": 100.0, "step": 0.05}),
+            "strength_step": ("FLOAT", {"default": 0.05, "min": 0.001, "max": 10.0, "step": 0.001}),
+            "max_loras": ("INT", {"default": 20, "min": 1, "max": 100}),
+            "required": ("BOOLEAN", {"default": False}),
+            "order": ("INT", {"default": 92, "min": -1000, "max": 1000}),
+        }}
+
+    def emit(self, key, label, description, default_lora_syntax, default_strength, min_strength, max_strength, strength_step, max_loras, required, order):
+        return (default_lora_syntax,)
+
+
+class MobileUITriggerWordsToggle:
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("filtered_trigger_words",)
+    FUNCTION = "emit"
+    CATEGORY = CATEGORY
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "key": ("STRING", {"default": "trigger_words"}),
+                "label": ("STRING", {"default": "Trigger Words"}),
+                "description": ("STRING", {"default": "", "multiline": True}),
+                "group_mode": ("BOOLEAN", {"default": True}),
+                "default_active": ("BOOLEAN", {"default": True}),
+                "allow_strength_adjustment": ("BOOLEAN", {"default": False}),
+                "toggle_state_json": ("STRING", {"default": "[]", "multiline": True}),
+                "order": ("INT", {"default": 93, "min": -1000, "max": 1000}),
+            },
+            "optional": {
+                "trigger_words": ("STRING", {"forceInput": True}),
+            },
+        }
+
+    def emit(self, key, label, description, group_mode, default_active, allow_strength_adjustment, toggle_state_json, order, trigger_words=""):
+        state = _parse_trigger_state(toggle_state_json)
+        if group_mode:
+            return (_filter_trigger_groups(trigger_words, state, default_active, allow_strength_adjustment),)
+        return (_filter_trigger_words(trigger_words, state, default_active, allow_strength_adjustment),)
+
+
+def _parse_trigger_state(value):
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except Exception:
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _split_trigger_groups(value):
+    if not isinstance(value, str) or not value.strip():
+        return []
+    return [item.strip() for item in re.split(r",{2,}", value) if item.strip()]
+
+
+def _split_trigger_words(value):
+    if not isinstance(value, str) or not value.strip():
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _state_by_text(state):
+    result = {}
+    for item in state:
+        if isinstance(item, dict):
+            text = str(item.get("text", "")).strip()
+            if text:
+                result[_trigger_key(text)] = item
+    return result
+
+
+def _word_state_by_text(state, default_active):
+    result = {}
+    for item in state:
+        if not isinstance(item, dict):
+            continue
+        item_active = item.get("active", default_active)
+        items = item.get("items", [])
+        if isinstance(items, list) and items:
+            for child in items:
+                if not isinstance(child, dict):
+                    continue
+                child_text = str(child.get("text", "")).strip()
+                if child_text:
+                    result[_trigger_key(child_text)] = {
+                        "active": item_active and child.get("active", True),
+                        "strength": child.get("strength"),
+                    }
+        text = str(item.get("text", "")).strip()
+        for word in _split_trigger_words(text):
+            result[_trigger_key(word)] = {
+                "active": item_active and result.get(_trigger_key(word), {}).get("active", True),
+                "strength": item.get("strength"),
+            }
+    return result
+
+
+def _trigger_key(value):
+    return re.sub(r"\s+", " ", str(value or "").strip()).casefold()
+
+
+def _format_trigger_text(text, strength, allow_strength_adjustment):
+    if allow_strength_adjustment and strength is not None:
+        try:
+            return f"({text}:{float(strength):.2f})"
+        except Exception:
+            return text
+    return text
+
+
+def _filter_trigger_groups(trigger_words, state, default_active, allow_strength_adjustment):
+    groups = _split_trigger_groups(trigger_words)
+    group_state = _state_by_text(state)
+    word_state = _word_state_by_text(state, default_active)
+    filtered = []
+    for group in groups:
+        saved_group = group_state.get(_trigger_key(group), {})
+        if not saved_group.get("active", default_active):
+            continue
+        words = _split_trigger_words(group)
+        item_state = _state_by_text(saved_group.get("items", []))
+        active_words = [
+            word
+            for word in words
+            if item_state.get(_trigger_key(word), word_state.get(_trigger_key(word), {})).get("active", default_active)
+        ]
+        if not active_words:
+            continue
+        group_text = ", ".join(active_words)
+        filtered.append(_format_trigger_text(group_text, saved_group.get("strength"), allow_strength_adjustment))
+    return ", ".join(filtered)
+
+
+def _filter_trigger_words(trigger_words, state, default_active, allow_strength_adjustment):
+    words = _split_trigger_words(trigger_words.replace(",,", ","))
+    word_state = _word_state_by_text(state, default_active)
+    filtered = []
+    for word in words:
+        saved_word = word_state.get(_trigger_key(word), {})
+        if not saved_word.get("active", default_active):
+            continue
+        filtered.append(_format_trigger_text(word, saved_word.get("strength"), allow_strength_adjustment))
+    return ", ".join(filtered)
+
+
 class MobileUIWorkflowMetadata:
     RETURN_TYPES = ()
     FUNCTION = "emit"
@@ -364,6 +529,8 @@ NODE_CLASS_MAPPINGS = {
     "MobileUI Diffusion Model Selector": MobileUIDiffusionModelSelector,
     "MobileUI Sampler Selector": MobileUISamplerSelector,
     "MobileUI Scheduler Selector": MobileUISchedulerSelector,
+    "MobileUI LoRA Stack Input": MobileUILoraStackInput,
+    "MobileUI Trigger Words Toggle": MobileUITriggerWordsToggle,
     "MobileUI Workflow Metadata": MobileUIWorkflowMetadata,
 }
 
@@ -380,5 +547,7 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "MobileUI Diffusion Model Selector": "MobileUI Diffusion Model Selector",
     "MobileUI Sampler Selector": "MobileUI Sampler Selector",
     "MobileUI Scheduler Selector": "MobileUI Scheduler Selector",
+    "MobileUI LoRA Stack Input": "MobileUI LoRA Stack Input",
+    "MobileUI Trigger Words Toggle": "MobileUI Trigger Words Toggle",
     "MobileUI Workflow Metadata": "MobileUI Workflow Metadata",
 }

@@ -66,6 +66,45 @@ app.get("/api/comfy/object-info/:nodeClass", async (req, res) => {
   }
 });
 
+app.get("/api/comfy/lm/loras", async (req, res) => {
+  try {
+    const payload = await comfy.loraManagerList(req.query);
+    res.json({
+      items: (payload.items ?? []).map(publicLoraItem),
+      total: payload.total ?? 0,
+      page: payload.page ?? 1,
+      pageSize: payload.page_size ?? payload.pageSize ?? 30,
+      totalPages: payload.total_pages ?? payload.totalPages ?? 1,
+    });
+  } catch (error) {
+    res.status(503).json({ error: error.message });
+  }
+});
+
+app.get("/api/comfy/lm/loras/trigger-words", async (req, res) => {
+  try {
+    const name = String(req.query.name || "");
+    if (!name) {
+      res.status(400).json({ error: "缺少 LoRA 名称。" });
+      return;
+    }
+    const payload = await comfy.loraManagerTriggerWords(name);
+    res.json({ name, triggerWords: payload.trigger_words ?? payload.triggerWords ?? [] });
+  } catch (error) {
+    res.status(503).json({ error: error.message });
+  }
+});
+
+app.get("/api/comfy/lm/previews", async (req, res) => {
+  try {
+    const preview = await comfy.loraManagerPreview(req.query);
+    res.setHeader("Content-Type", preview.contentType);
+    res.send(preview.bytes);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
 app.get("/api/workflows", async (_req, res) => {
   try {
     res.json({ workflows: await workflowLibrary.list() });
@@ -274,6 +313,37 @@ app.use((req, res) => {
   }
   res.status(404).json({ error: `Not found: ${req.method} ${req.path}` });
 });
+
+function publicLoraItem(item) {
+  const fileName = String(item.file_name || item.name || "").replace(/\.(safetensors|ckpt|pt|bin)$/i, "");
+  const folder = String(item.folder || "").replace(/\\/g, "/").replace(/^\/|\/$/g, "");
+  const name = folder ? `${folder}/${fileName}` : fileName;
+  return {
+    name,
+    fileName,
+    displayName: String(item.model_name || fileName || name),
+    folder,
+    baseModel: String(item.base_model || ""),
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    autoTags: Array.isArray(item.auto_tags) ? item.auto_tags : [],
+    trainedWords: Array.isArray(item.civitai?.trainedWords) ? item.civitai.trainedWords : [],
+    previewUrl: proxiedLoraPreviewUrl(item.preview_url),
+    favorite: Boolean(item.favorite),
+    nsfwLevel: item.preview_nsfw_level ?? 0,
+  };
+}
+
+function proxiedLoraPreviewUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(String(value), "http://comfy.local");
+    const previewPath = url.searchParams.get("path");
+    if (!previewPath) return "";
+    return `/api/comfy/lm/previews?path=${encodeURIComponent(previewPath)}`;
+  } catch {
+    return "";
+  }
+}
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Mobile wrapper API: http://127.0.0.1:${PORT}`);

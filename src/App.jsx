@@ -7,6 +7,7 @@ const ACTIVE_KEY = "mobileui.activeWorkflowId";
 const DRAFT_PREFIX = "mobileui.draft.";
 const HISTORY_LIMIT = 20;
 const COMPARE_LIMIT = 2;
+const LORA_PATTERN = /<lora:([^:>]+):([-+]?\d*\.?\d+)(?::([-+]?\d*\.?\d+))?>/gi;
 const ASPECT_OPTIONS = [
   ["1:1", "1:1 Square"],
   ["3:2", "3:2 Photo"],
@@ -517,7 +518,7 @@ function App() {
           {active?.schema && (
             <form id="workflow-run-form" className="form-stack" onSubmit={runWorkflow}>
               {inputFields.map((field) => (
-                <FieldControl key={field.key} field={field} value={values[field.key]} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
+                <FieldControl key={field.key} field={field} value={values[field.key]} values={values} fields={inputFields} onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))} />
               ))}
             </form>
           )}
@@ -1143,7 +1144,7 @@ function Cover({ workflow }) {
   return <span className="cover fallback">{(workflow.title || "W").slice(0, 1).toUpperCase()}</span>;
 }
 
-function FieldControl({ field, value, onChange }) {
+function FieldControl({ field, value, values, fields, onChange }) {
   if (field.kind === "text") {
     return (
       <label className="field">
@@ -1285,7 +1286,215 @@ function FieldControl({ field, value, onChange }) {
     );
   }
 
+  if (field.kind === "lora_stack") {
+    return <LoraStackField field={field} value={value} onChange={onChange} />;
+  }
+
+  if (field.kind === "trigger_words_toggle") {
+    return <TriggerWordsToggleField field={field} value={value} values={values} fields={fields} onChange={onChange} />;
+  }
+
   return null;
+}
+
+function LoraStackField({ field, value, onChange }) {
+  const current = normalizeLoraStackValue(field, value);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState({ items: [], loading: false, error: "" });
+  const selectedNames = new Set(current.entries.map((entry) => entry.name));
+  const activeCount = current.entries.filter((entry) => entry.active !== false).length;
+  const allActive = current.entries.length > 0 && activeCount === current.entries.length;
+
+  async function load() {
+    setResults((state) => ({ ...state, loading: true, error: "" }));
+    try {
+      const params = new URLSearchParams({ page: "1", pageSize: "40" });
+      if (query.trim()) params.set("search", query.trim());
+      const response = await fetch(`${API}/comfy/lm/loras?${params.toString()}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error);
+      setResults({ items: payload.items ?? [], loading: false, error: "" });
+    } catch (error) {
+      setResults({ items: [], loading: false, error: error.message });
+    }
+  }
+
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const id = setTimeout(load, 180);
+    return () => clearTimeout(id);
+  }, [pickerOpen, query]);
+
+  useEffect(() => {
+    const missing = current.entries.filter((entry) => entry.name && !entry.triggerWordsLoaded);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(missing.map((entry) => loadLoraTriggerWords(entry.name))).then((loaded) => {
+      if (cancelled) return;
+      const byName = new Map(loaded.map((item) => [item.name, item.triggerWords]));
+      const entries = current.entries.map((entry) => (
+        byName.has(entry.name)
+          ? { ...entry, trainedWords: byName.get(entry.name), triggerWordsLoaded: true }
+          : entry
+      ));
+      onChange({ ...current, entries });
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [current.entries.map((entry) => `${entry.name}:${entry.triggerWordsLoaded ? "1" : "0"}`).join("|")]);
+
+  function updateEntries(entries) {
+    onChange({ ...current, entries: limitLoraEntries(field, entries) });
+  }
+
+  function addLora(item) {
+    const entry = loraItemToEntry(field, item);
+    const existing = current.entries.find((candidate) => candidate.name === entry.name);
+    const entries = existing
+      ? current.entries.map((candidate) => candidate.name === entry.name ? { ...candidate, ...entry, active: true, strength: candidate.strength } : candidate)
+      : [...current.entries, entry];
+    updateEntries(entries);
+    setPickerOpen(false);
+  }
+
+  return (
+    <section className="field lora-stack-control">
+      <div className="control-top">
+        <FieldHeading field={field} />
+        <div className="mini-actions">
+          <button type="button" onClick={() => setPickerOpen(true)}>添加</button>
+          <button type="button" disabled={current.entries.length === 0} onClick={() => updateEntries(current.entries.map((entry) => ({ ...entry, active: !allActive })))}>{allActive ? "静音" : "启用"}</button>
+          <button type="button" onClick={() => onChange(loraStackDefault(field))}>↻</button>
+        </div>
+      </div>
+      <div className="lora-summary">
+        <strong>{activeCount}/{current.entries.length}</strong>
+        <span>{formatLoraSyntax(current.entries, field) || "未选择 LoRA"}</span>
+      </div>
+      <div className="lora-stack-list">
+        {current.entries.map((entry, index) => (
+          <div className={`lora-row ${entry.active === false ? "muted" : ""}`} key={entry.name}>
+            <LoraThumb entry={entry} />
+            <div className="lora-row-main">
+              <strong>{entry.displayName || entry.name}</strong>
+              <small>{entry.baseModel || entry.name}</small>
+              {entry.trainedWords?.length > 0 && <small>{entry.trainedWords.join(", ")}</small>}
+            </div>
+            <div className="lora-row-actions">
+              <button type="button" className={entry.active !== false ? "active" : ""} onClick={() => updateEntries(current.entries.map((candidate) => candidate.name === entry.name ? { ...candidate, active: candidate.active === false } : candidate))}>
+                {entry.active === false ? "off" : "on"}
+              </button>
+              <CompactStepper label="w" value={entry.strength} step={field.strengthStep} min={field.minStrength} max={field.maxStrength} onChange={(strength) => updateEntries(current.entries.map((candidate) => candidate.name === entry.name ? { ...candidate, strength } : candidate))} />
+              <div className="lora-order-actions">
+                <button type="button" disabled={index === 0} onClick={() => updateEntries(moveItem(current.entries, index, index - 1))}>↑</button>
+                <button type="button" disabled={index === current.entries.length - 1} onClick={() => updateEntries(moveItem(current.entries, index, index + 1))}>↓</button>
+                <button type="button" onClick={() => updateEntries(current.entries.filter((candidate) => candidate.name !== entry.name))}>删</button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {current.entries.length === 0 && <small className="empty-copy">还没有 LoRA。</small>}
+      </div>
+      {pickerOpen && (
+        <div className="lora-picker-overlay">
+          <section className="lora-picker">
+            <div className="modal-head">
+              <div>
+                <h2>选择 LoRA</h2>
+                <small>{results.loading ? "读取中..." : `${results.items.length} 个候选`}</small>
+              </div>
+              <button type="button" onClick={() => setPickerOpen(false)}>关闭</button>
+            </div>
+            <div className="option-tools">
+              <input value={query} placeholder="搜索 LoRA" onChange={(event) => setQuery(event.target.value)} />
+              <button type="button" onClick={load}>刷新</button>
+            </div>
+            {results.error && <small className="warning">{results.error}</small>}
+            <div className="lora-result-list">
+              {results.items.map((item) => (
+                <button className="lora-result" type="button" key={item.name} onClick={() => addLora(item)} disabled={!selectedNames.has(item.name) && current.entries.length >= field.maxLoras}>
+                  <LoraThumb entry={item} />
+                  <span>
+                    <strong>{item.displayName}</strong>
+                    <small>{[item.baseModel, item.folder, ...(item.tags ?? []).slice(0, 2)].filter(Boolean).join(" / ") || item.name}</small>
+                    {item.trainedWords?.length > 0 && <small>{item.trainedWords.join(", ")}</small>}
+                  </span>
+                  <em>{selectedNames.has(item.name) ? "已选" : "添加"}</em>
+                </button>
+              ))}
+              {!results.loading && results.items.length === 0 && <p className="empty-copy">没有匹配的 LoRA。</p>}
+            </div>
+          </section>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LoraThumb({ entry }) {
+  if (entry.previewUrl) return <img className="lora-thumb" src={entry.previewUrl} alt="" loading="lazy" />;
+  return <span className="lora-thumb fallback">{(entry.displayName || entry.name || "L").slice(0, 1).toUpperCase()}</span>;
+}
+
+function TriggerWordsToggleField({ field, value, values, fields, onChange }) {
+  const current = normalizeTriggerToggleValue(field, value);
+  const sourceGroups = triggerGroupsFromLoras(fields, values);
+  const groups = mergeTriggerGroups(sourceGroups, current.groups, current.defaultActive);
+  const words = mergeTriggerWords(sourceGroups, current.groups, current.defaultActive);
+
+  function update(next) {
+    onChange({ ...current, ...next });
+  }
+
+  function updateGroup(text, updater) {
+    update({ groups: groups.map((group) => group.text === text ? updater(group) : group) });
+  }
+
+  function updateWord(text, updater) {
+    update({ groups: words.map((word) => word.text === text ? updater(word) : word) });
+  }
+
+  return (
+    <section className="field trigger-toggle-control">
+      <div className="control-top">
+        <FieldHeading field={field} />
+        <div className="mini-actions">
+          <button className={current.groupMode ? "active" : ""} type="button" onClick={() => update({ groupMode: true, groups })}>组</button>
+          <button className={!current.groupMode ? "active" : ""} type="button" onClick={() => update({ groupMode: false, groups: words })}>词</button>
+          <button type="button" onClick={() => onChange(triggerToggleDefault(field))}>↻</button>
+        </div>
+      </div>
+      {current.groupMode ? (
+        <div className="trigger-group-list">
+          {groups.map((group) => (
+            <div className={`trigger-group ${group.active ? "active" : ""}`} key={group.text}>
+              <div className="trigger-group-head">
+                <button type="button" onClick={() => updateGroup(group.text, (item) => ({ ...item, active: !item.active }))}>{group.label || group.text}</button>
+              </div>
+              <div className="trigger-chip-row">
+                {group.items.map((item) => (
+                  <button className={item.active ? "active" : ""} type="button" key={item.text} disabled={!group.active} onClick={() => updateGroup(group.text, (groupItem) => ({ ...groupItem, items: groupItem.items.map((child) => child.text === item.text ? { ...child, active: !child.active } : child) }))}>
+                    {item.text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="trigger-chip-row flat">
+          {words.map((word) => (
+            <button className={word.active ? "active" : ""} type="button" key={word.text} onClick={() => updateWord(word.text, (item) => ({ ...item, active: !item.active }))}>
+              {word.text}
+            </button>
+          ))}
+        </div>
+      )}
+      {sourceGroups.length === 0 && <small className="empty-copy">已选 LoRA 没有 trigger words。</small>}
+    </section>
+  );
 }
 
 function OptionField({ field, value, onChange, children }) {
@@ -1435,6 +1644,8 @@ function defaultValues(schema) {
     if (field.kind === "scheduler_selector") next[field.key] = field.defaultScheduler ?? "";
     if (field.kind === "clip_selector") next[field.key] = { clipName: field.defaultClipName ?? "", type: field.defaultType ?? "stable_diffusion", device: field.defaultDevice ?? "default" };
     if (field.kind === "diffusion_model_selector") next[field.key] = { unetName: field.defaultUnetName ?? "", weightDtype: field.defaultWeightDtype ?? "default" };
+    if (field.kind === "lora_stack") next[field.key] = loraStackDefault(field);
+    if (field.kind === "trigger_words_toggle") next[field.key] = triggerToggleDefault(field);
   }
   return next;
 }
@@ -1456,6 +1667,210 @@ function serializableValues(schema, values) {
   for (const field of schema.inputs ?? []) {
     if (field.kind !== "image") next[field.key] = values[field.key];
   }
+  return next;
+}
+
+function loraStackDefault(field) {
+  return {
+    entries: parseLoraSyntaxValue(field.defaultLoraSyntax).map((entry) => ({
+      ...entry,
+      strength: clamp(entry.strength, field.minStrength, field.maxStrength),
+      triggerWordsLoaded: false,
+    })),
+  };
+}
+
+function normalizeLoraStackValue(field, value) {
+  const source = value && typeof value === "object" ? value : loraStackDefault(field);
+  const entries = Array.isArray(source.entries) ? source.entries : [];
+  return {
+    entries: limitLoraEntries(field, entries.map((entry) => ({
+      name: normalizeLoraName(entry.name),
+      displayName: entry.displayName || entry.name || "",
+      strength: clamp(Number(entry.strength ?? field.defaultStrength ?? 1), field.minStrength, field.maxStrength),
+      active: entry.active !== false,
+      previewUrl: entry.previewUrl || "",
+      baseModel: entry.baseModel || "",
+      folder: entry.folder || "",
+      tags: Array.isArray(entry.tags) ? entry.tags : [],
+      trainedWords: Array.isArray(entry.trainedWords) ? entry.trainedWords : [],
+      triggerWordsLoaded: Boolean(entry.triggerWordsLoaded),
+    })).filter((entry) => entry.name)),
+  };
+}
+
+function parseLoraSyntaxValue(value) {
+  const entries = [];
+  const text = String(value ?? "");
+  LORA_PATTERN.lastIndex = 0;
+  let match;
+  while ((match = LORA_PATTERN.exec(text)) !== null) {
+    entries.push({
+      name: normalizeLoraName(match[1]),
+      displayName: normalizeLoraName(match[1]),
+      strength: Number(match[2]),
+      active: true,
+    });
+  }
+  return entries;
+}
+
+function limitLoraEntries(field, entries) {
+  const seen = new Set();
+  const result = [];
+  for (const entry of entries) {
+    const name = normalizeLoraName(entry.name);
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    result.push({
+      ...entry,
+      name,
+      strength: clamp(Number(entry.strength ?? field.defaultStrength ?? 1), field.minStrength, field.maxStrength),
+      active: entry.active !== false,
+    });
+    if (result.length >= field.maxLoras) break;
+  }
+  return result;
+}
+
+function formatLoraSyntax(entries, field) {
+  return entries
+    .filter((entry) => entry.active !== false)
+    .slice(0, field.maxLoras)
+    .map((entry) => `<lora:${normalizeLoraName(entry.name)}:${Number(entry.strength ?? field.defaultStrength ?? 1).toFixed(2)}>`)
+    .join(" ");
+}
+
+function loraItemToEntry(field, item) {
+  const trainedWords = Array.isArray(item.trainedWords) ? item.trainedWords : [];
+  return {
+    name: normalizeLoraName(item.name),
+    displayName: item.displayName || item.name,
+    strength: clamp(Number(field.defaultStrength ?? 1), field.minStrength, field.maxStrength),
+    active: true,
+    previewUrl: item.previewUrl || "",
+    baseModel: item.baseModel || "",
+    folder: item.folder || "",
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    trainedWords,
+    triggerWordsLoaded: trainedWords.length > 0,
+  };
+}
+
+function normalizeLoraName(value) {
+  return String(value ?? "").trim().replace(/\\/g, "/");
+}
+
+async function loadLoraTriggerWords(name) {
+  const response = await fetch(`${API}/comfy/lm/loras/trigger-words?name=${encodeURIComponent(name)}`);
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error);
+  return { name, triggerWords: payload.triggerWords ?? [] };
+}
+
+function triggerToggleDefault(field) {
+  return {
+    groupMode: Boolean(field.groupMode),
+    defaultActive: Boolean(field.defaultActive),
+    allowStrengthAdjustment: false,
+    groups: Array.isArray(field.toggleState) ? field.toggleState : [],
+  };
+}
+
+function normalizeTriggerToggleValue(field, value) {
+  const source = value && typeof value === "object" ? value : triggerToggleDefault(field);
+  return {
+    groupMode: "groupMode" in source ? Boolean(source.groupMode) : Boolean(field.groupMode),
+    defaultActive: "defaultActive" in source ? Boolean(source.defaultActive) : Boolean(field.defaultActive),
+    allowStrengthAdjustment: false,
+    groups: Array.isArray(source.groups) ? source.groups : [],
+  };
+}
+
+function triggerGroupsFromLoras(fields, values) {
+  const groups = [];
+  for (const field of fields ?? []) {
+    if (field.kind !== "lora_stack") continue;
+    const loraValue = normalizeLoraStackValue(field, values[field.key]);
+    for (const entry of loraValue.entries) {
+      if (entry.active === false || !entry.trainedWords?.length) continue;
+      const words = uniqueStrings(entry.trainedWords);
+      if (words.length === 0) continue;
+      groups.push({
+        text: words.join(", "),
+        label: entry.displayName || entry.name,
+        items: words.map((word) => ({ text: word, active: true })),
+        active: true,
+      });
+    }
+  }
+  return groups;
+}
+
+function mergeTriggerGroups(sourceGroups, savedGroups, defaultActive) {
+  if (sourceGroups.length === 0) return sanitizeTriggerGroups(savedGroups);
+  const savedMap = triggerStateMap(savedGroups);
+  return sourceGroups.map((group) => {
+    const saved = savedMap.get(group.text);
+    const itemMap = triggerStateMap(saved?.items ?? []);
+    return {
+      ...group,
+      active: saved ? saved.active !== false : defaultActive !== false,
+      items: group.items.map((item) => ({
+        ...item,
+        active: itemMap.has(item.text) ? itemMap.get(item.text).active !== false : true,
+      })),
+    };
+  });
+}
+
+function mergeTriggerWords(sourceGroups, savedGroups, defaultActive) {
+  const savedMap = triggerStateMap(flattenSavedTriggerItems(savedGroups));
+  const words = uniqueStrings(sourceGroups.flatMap((group) => group.items.map((item) => item.text)));
+  if (words.length === 0) return sanitizeTriggerGroups(savedGroups);
+  return words.map((text) => ({
+    text,
+    active: savedMap.has(text) ? savedMap.get(text).active !== false : defaultActive !== false,
+  }));
+}
+
+function flattenSavedTriggerItems(groups) {
+  const items = [];
+  for (const group of groups ?? []) {
+    if (Array.isArray(group.items)) items.push(...group.items);
+    else items.push(group);
+  }
+  return items;
+}
+
+function sanitizeTriggerGroups(groups) {
+  return (groups ?? [])
+    .map((group) => ({
+      text: String(group?.text ?? "").trim(),
+      label: group?.label || "",
+      active: group?.active !== false,
+      items: Array.isArray(group?.items) ? group.items.map((item) => ({ text: String(item?.text ?? "").trim(), active: item?.active !== false })).filter((item) => item.text) : [],
+    }))
+    .filter((group) => group.text);
+}
+
+function triggerStateMap(items) {
+  const map = new Map();
+  for (const item of items ?? []) {
+    const text = String(item?.text ?? "").trim();
+    if (text) map.set(text, item);
+  }
+  return map;
+}
+
+function uniqueStrings(items) {
+  return [...new Set((items ?? []).map((item) => String(item ?? "").trim()).filter(Boolean))];
+}
+
+function moveItem(items, fromIndex, toIndex) {
+  const next = [...items];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
   return next;
 }
 

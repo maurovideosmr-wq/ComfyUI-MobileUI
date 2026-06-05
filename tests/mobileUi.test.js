@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { extractDeclaredImages, parseWorkflowMetadata, parseWorkflowSchema, patchWorkflow, resolveSeed, resolveSize, sizeFromAspectMegapixels, stripWorkflowMetadata } from "../server/mobileUi.js";
+import { extractDeclaredImages, parseLoraSyntax, parseWorkflowMetadata, parseWorkflowSchema, patchWorkflow, resolveLoraSyntax, resolveSeed, resolveSize, sizeFromAspectMegapixels, stripWorkflowMetadata } from "../server/mobileUi.js";
 import { WorkflowLibrary } from "../server/workflowLibrary.js";
 
 test("parses MobileUI declarations from api workflow", () => {
@@ -155,6 +155,78 @@ test("patches v2 selector values into MobileUI nodes", () => {
   assert.equal(patched["307"].inputs.default_scheduler, "normal");
 });
 
+test("parses and patches LoRA manager MobileUI declarations", () => {
+  const workflow = loraWorkflow();
+  const schema = parseWorkflowSchema(workflow);
+
+  assert.deepEqual(
+    schema.inputs.map((field) => field.kind),
+    ["lora_stack", "trigger_words_toggle"],
+  );
+  assert.equal(schema.inputs[0].defaultLoraSyntax, "<lora:style-a:1.50>");
+  assert.equal(schema.inputs[0].minStrength, -2);
+  assert.equal(schema.inputs[0].maxStrength, 2);
+  assert.equal(schema.inputs[0].maxLoras, 2);
+  assert.equal(schema.inputs[1].allowStrengthAdjustment, false);
+
+  const patched = patchWorkflow(workflow, schema, {
+    loras: {
+      entries: [
+        { name: "style-a", strength: 1.25, active: true },
+        { name: "style-b", strength: -20, active: true },
+        { name: "style-a", strength: 0.5, active: true },
+        { name: "muted-style", strength: 1, active: false },
+      ],
+    },
+    trigger_words: {
+      groupMode: true,
+      defaultActive: false,
+      allowStrengthAdjustment: true,
+      groups: [
+        {
+          text: "masterpiece, best quality",
+          active: true,
+          strength: 1.1,
+          items: [
+            { text: "masterpiece", active: false },
+            { text: "best quality", active: true },
+          ],
+        },
+      ],
+    },
+  });
+
+  assert.equal(patched["320"].inputs.default_lora_syntax, "<lora:style-a:1.25> <lora:style-b:-2.00>");
+  assert.equal(patched["321"].inputs.group_mode, true);
+  assert.equal(patched["321"].inputs.default_active, false);
+  assert.equal(patched["321"].inputs.allow_strength_adjustment, false);
+  assert.deepEqual(JSON.parse(patched["321"].inputs.toggle_state_json), [
+    {
+      text: "masterpiece, best quality",
+      active: true,
+      items: [
+        { text: "masterpiece", active: false },
+        { text: "best quality", active: true },
+      ],
+    },
+  ]);
+  assert.deepEqual(patched["321"].inputs.trigger_words, ["400", 2]);
+});
+
+test("resolves LoRA syntax defaults, clamps, and required validation", () => {
+  const field = parseWorkflowSchema(loraWorkflow()).inputs[0];
+
+  assert.deepEqual(parseLoraSyntax("<lora:a:1.2> <lora:folder/b:-0.5:0.8>"), [
+    { name: "a", strength: 1.2, clipStrength: null, active: true },
+    { name: "folder/b", strength: -0.5, clipStrength: 0.8, active: true },
+  ]);
+  assert.equal(
+    resolveLoraSyntax(field, { entries: [{ name: "x\\y", strength: 99 }, { name: "z", strength: 1 }] }),
+    "<lora:x/y:2.00> <lora:z:1.00>",
+  );
+  assert.throws(() => resolveLoraSyntax(field, { entries: [{ name: "muted", active: false }] }), /必填项/);
+});
+
 test("workflow library detects existing and conflicting uploads", async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "mobileui-workflows-"));
   const exampleDir = await fs.mkdtemp(path.join(os.tmpdir(), "mobileui-examples-"));
@@ -177,6 +249,48 @@ test("workflow library detects existing and conflicting uploads", async () => {
   assert.equal(conflict.status, "conflict");
   assert.equal(conflict.conflict.type, "same_id");
 });
+
+function loraWorkflow() {
+  return {
+    320: {
+      class_type: "MobileUI LoRA Stack Input",
+      inputs: {
+        key: "loras",
+        label: "LoRA",
+        description: "Pick LoRAs for mobile users.",
+        default_lora_syntax: "<lora:style-a:1.50>",
+        default_strength: 1,
+        min_strength: -2,
+        max_strength: 2,
+        strength_step: 0.05,
+        max_loras: 2,
+        required: true,
+        order: 8,
+      },
+    },
+    321: {
+      class_type: "MobileUI Trigger Words Toggle",
+      inputs: {
+        key: "trigger_words",
+        label: "Trigger Words",
+        description: "Toggle LoRA trained words.",
+        group_mode: true,
+        default_active: true,
+        allow_strength_adjustment: true,
+        toggle_state_json: '[{"text":"old","active":false}]',
+        trigger_words: ["400", 2],
+        order: 9,
+      },
+    },
+    400: {
+      class_type: "Lora Loader (LoraManager)",
+      inputs: {
+        model: ["4", 0],
+        text: ["320", 0],
+      },
+    },
+  };
+}
 
 function sampleWorkflow() {
   return {

@@ -16,6 +16,8 @@
 - `MobileUI Diffusion Model Selector`
 - `MobileUI Sampler Selector`
 - `MobileUI Scheduler Selector`
+- `MobileUI LoRA Stack Input`
+- `MobileUI Trigger Words Toggle`
 - `MobileUI Workflow Metadata`
 
 ## 用法
@@ -29,6 +31,21 @@
 - `MobileUI Select Input` 输出 `value`。
 - 模型和采样 selector 输出 wildcard-compatible 原始值，可以连接到 ComfyUI 的 combo/widget 输入，例如 `vae_name`、`clip_name`、`unet_name`、`sampler_name`、`scheduler`。
 - selector 节点里的默认值字段是 ComfyUI 下拉框，不需要手打文件名或 sampler 名。
+- `MobileUI LoRA Stack Input` 输出 wildcard-compatible LoRA syntax 文本，例如 `<lora:name:1.00>`，用于连接 `LoRA Text Loader (LoraManager)` 的 `lora_syntax` 输入。它只声明和输出文本，不加载 LoRA。
+- `MobileUI Trigger Words Toggle` 接收 `LoRA Text Loader (LoraManager)` 的 `trigger_words` 输出，并按移动端开关状态输出过滤后的 `STRING`，用于连接 prompt concat、prompt merge 或其他文本输入。它只负责开关词，不提供 trigger word 权重；LoRA 加载权重仍在 LoRA Stack 里调。
+- 推荐接线：
+
+```text
+MobileUI LoRA Stack Input.lora_syntax
+  -> LoRA Text Loader (LoraManager).lora_syntax
+
+LoRA Text Loader (LoraManager).trigger_words
+  -> MobileUI Trigger Words Toggle.trigger_words
+  -> concat / prompt merge / text input
+```
+
+不要在 `MobileUI Trigger Words Toggle` 后面再串 `TriggerWord Toggle (LoraManager)`。Lora Manager 自带 toggle 有自己的原始消息缓存，接在动态 trigger 源后面时可能直接透传上游文本，导致开关看起来没效果。
+
 - `MobileUI Workflow Metadata` 是 workflow 库卡片信息节点，不连接图输入输出。字段包括 `workflow_id`、`title`、`description`、`cover_image`、`tags`、`author`、`version`、`sort_order`。
 - `cover_image` 使用 ComfyUI 的图片选择器。建议选择一张方图；如果没选或读取失败，移动端会显示默认封面。
 

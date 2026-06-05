@@ -1,3 +1,102 @@
+# devlog 2026-06-06 00:41 Fix trigger word toggle filtering
+
+### Changed
+
+- Inspected the real ComfyUI saved workflow at `S:\Users\Fix\Documents\ComfyUI-Easy\ComfyUI-Easy-Install\ComfyUI\user\default\workflows\anima mobile.json`.
+- Found the active trigger path had an extra `TriggerWord Toggle (LoraManager)` node after `MobileUI Trigger Words Toggle`.
+- Bypassed that extra Lora Manager toggle in the ComfyUI saved workflow so the path is now:
+  - `LoRA Text Loader (LoraManager).trigger_words`
+  - `MobileUI Trigger Words Toggle.filtered_trigger_words`
+  - `StringConcatenate.string_a`
+- Synced the wrapper's uploaded API workflow at `workflows/defaultuser/anima-1-0-turbo/workflow.json` to use `MobileUI Trigger Words Toggle` directly.
+- Updated `workflows/defaultuser/anima-1-0-turbo/manifest.json` with the new workflow hash.
+- Left backups:
+  - `anima mobile.json.before-trigger-bypass-20260605-1640.bak`
+  - `workflow.json.before-trigger-bypass-20260605-1640.bak`
+  - `manifest.json.before-trigger-bypass-20260605-1640.bak`
+- Made `MobileUI Trigger Words Toggle` match saved word state by normalized word text, so per-word toggles still apply if Lora Manager changes whitespace or group punctuation.
+- Fixed the actual Light Concepts failure mode: Lora Manager emits trigger words as `dispersion,, hue shifting,, ...`, while the mobile UI stores the selected LoRA as one group. Turning the group off now propagates inactive state to each child word, so runtime `,,`-separated words are filtered out.
+- Removed mobile trigger-word weight behavior. Trigger words are on/off only; LoRA weights remain controlled by `MobileUI LoRA Stack Input`.
+- Updated README files to document the direct wiring and the reason not to put `TriggerWord Toggle (LoraManager)` after the MobileUI toggle.
+
+### Verification
+
+- Re-read `anima mobile.json` and confirmed node `110` now receives `string_a` from node `109` directly through link `172`.
+- Re-read `workflows/defaultuser/anima-1-0-turbo/workflow.json` and confirmed `110.string_a` is `["109", 0]`.
+- Confirmed `MobileUI Trigger Words Toggle.allow_strength_adjustment` is now false in both the ComfyUI saved workflow and wrapper API workflow.
+- Ran a direct local Python check against `custom_nodes/ComfyUI-MobileUI/nodes.py`:
+  - Light Concepts group `active:false` with Lora Manager runtime text `dispersion,, hue shifting,, ...` returns an empty string.
+  - Partial child-word toggles return only the still-active words.
+- `npm test` passed with 16 automated tests.
+- `npm run build` passed as a build check.
+- `npm run install:comfy-node` completed.
+- Source/target SHA256 hashes match for `nodes.py`, `README.md`, and `__init__.py`.
+- ComfyUI must be restarted before the running process uses the updated `nodes.py`; complete post-restart end-to-end verification is still pending.
+
+# devlog 2026-06-04 15:15 Fix ComfyUI anima mobile LoRA loader wiring
+
+### Changed
+
+- Inspected the real ComfyUI user workflow at `S:\Users\Fix\Documents\ComfyUI-Easy\ComfyUI-Easy-Install\ComfyUI\user\default\workflows\anima mobile.json`.
+- Fixed node `105` from `Lora Loader (LoraManager)` to `LoRA Text Loader (LoraManager)`.
+- Changed node `105` input slot `1` from `text` / `AUTOCOMPLETE_TEXT_LORAS` to `lora_syntax` / `STRING`.
+- Changed link `144` from `AUTOCOMPLETE_TEXT_LORAS` to `STRING`.
+- Left `MobileUI LoRA Stack Input` node `108` default syntax as `<lora:anima-turbo-lora-v0.2:0.70>`.
+- Created a backup beside the workflow: `anima mobile.json.before-lora-text-loader-202606040714.bak`.
+
+### Verification
+
+- Re-read the edited JSON and confirmed:
+  - node `105` type is `LoRA Text Loader (LoraManager)`,
+  - input slot `1` is `lora_syntax`,
+  - link `144` connects `MobileUI LoRA Stack Input.lora_syntax` to node `105` slot `1` as `STRING`.
+- Confirmed Lora Manager can find `anima-turbo-lora-v0.2` in `/api/lm/loras/list`.
+- `/api/lm/loras/get-trigger-words?name=anima-turbo-lora-v0.2` returned an empty trigger word list, which means this LoRA has no trained words metadata; that is separate from loader recognition.
+- Did not run a complete generation after this workflow-file edit.
+
+# devlog 2026-06-04 14:45 Add MobileUI LoRA manager controls
+
+### Changed
+
+- Added `MobileUI LoRA Stack Input` custom node for mobile LoRA selection/configuration that outputs Lora Manager syntax text such as `<lora:name:1.00>` through a `lora_syntax` output.
+- Added `MobileUI Trigger Words Toggle` custom node that receives `LoRA Text Loader (LoraManager).trigger_words` and outputs filtered trigger text.
+- Added backend schema parsing and patching for `lora_stack` and `trigger_words_toggle`.
+- Added Lora Manager proxy endpoints:
+  - `GET /api/comfy/lm/loras`
+  - `GET /api/comfy/lm/loras/trigger-words?name=...`
+  - `GET /api/comfy/lm/previews?path=...`
+- Added a mobile-first LoRA picker with search, preview, add/remove, order, mute/unmute, and weight stepper controls.
+- Added trigger word group/chip controls that sync from selected LoRAs and preserve mobile toggle state.
+- Added focused automated coverage for LoRA schema parsing, syntax parsing, dedupe, max count, weight clamp, required validation, and trigger toggle patching.
+- Updated README and custom node README with the new nodes, Lora Manager wiring, proxy APIs, and mobile UX behavior.
+- Reinstalled the ComfyUI custom node package.
+
+### Verification
+
+- `npm test` passes with 16 automated tests.
+- `npm run build` passes as a build check.
+- CSS scan for `src/styles.css` found no green color tokens and only `border-radius: 0`.
+- Started a temporary wrapper on `http://127.0.0.1:3048` with `COMFYUI_URL=http://192.168.124.41:8188`.
+- `/api/comfy/status` returned `ok:true`.
+- Lora Manager proxy checks passed:
+  - `/api/comfy/lm/loras?page=1&pageSize=3` returned real LoRA entries with names, preview URLs, base model labels, tags, and trained words.
+  - `/api/comfy/lm/loras/trigger-words?name=anima-base-1-masterpiece-v51` returned `masterpiece` and `very aesthetic`.
+  - `/api/comfy/lm/loras/trigger-words?name=zit/aesthetic_exp1` returned an empty trigger word list without failing.
+  - `/api/comfy/lm/previews?...` returned an `image/jpeg` preview through the wrapper.
+- Browser checks with the Codex in-app browser confirmed:
+  - standalone browser namespace was not exposed by `tool_search`, but the Browser runtime listed `Codex In-app Browser` (`iab`) and Chrome extension backends,
+  - the temporary LoRA verification workflow schema rendered 2 inputs and 1 output,
+  - default LoRA syntax parsed into a selected LoRA row,
+  - trained words loaded into Trigger Words chips,
+  - LoRA picker opened at 390px mobile width, searched Lora Manager entries, and had no horizontal row overflow,
+  - adding `Blending - Style` updated selected syntax to two LoRAs and added the `blending` trigger chip,
+  - desktop viewport kept LoRA and Trigger controls full-width inside the two-column form.
+- Inspected the installed Lora Manager source and confirmed `Lora Loader (LoraManager)` discards its `text` input at runtime, while `LoRA Text Loader (LoraManager)` parses external syntax from `lora_syntax`; documentation and node output naming now point to `LoRA Text Loader (LoraManager).lora_syntax`.
+- `/object_info/LoRA%20Text%20Loader%20(LoraManager)` confirmed `lora_syntax` is a force-input `STRING` and has `trigger_words` output.
+- `npm run install:comfy-node` completed and source/target hashes matched for `nodes.py`, `README.md`, and `__init__.py`.
+- Current running ComfyUI has not been restarted after installation: `/object_info/MobileUI%20LoRA%20Stack%20Input` and `/object_info/MobileUI%20Trigger%20Words%20Toggle` returned `{}`.
+- Complete new-node end-to-end ComfyUI testing through `/api/run` was not possible until ComfyUI is restarted and a real workflow using the new nodes is exported.
+
 # devlog 2026-06-04 09:12 Add image tap preview lightbox
 
 ### Changed

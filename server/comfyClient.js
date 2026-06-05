@@ -23,6 +23,43 @@ export class ComfyClient {
     return response.json();
   }
 
+  async loraManagerList(query = {}) {
+    const params = new URLSearchParams();
+    params.set("page", String(query.page || 1));
+    params.set("page_size", String(Math.min(Number(query.pageSize || query.page_size || 30), 100)));
+    params.set("sort_by", String(query.sortBy || query.sort_by || "name"));
+    params.set("search_tags", "true");
+    params.set("search_modelname", "true");
+    params.set("search_filename", "true");
+    if (query.search) params.set("search", String(query.search));
+    if (query.folder) params.set("folder", String(query.folder));
+    if (query.baseModel || query.base_model) params.append("base_model", String(query.baseModel || query.base_model));
+    if (query.tag) params.append("tag", String(query.tag));
+    if (query.favoritesOnly || query.favorites_only) params.set("favorites_only", "true");
+
+    const response = await fetch(`${this.baseUrl}/api/lm/loras/list?${params.toString()}`);
+    if (!response.ok) throw new Error(`读取 Lora Manager 列表失败：${response.status}`);
+    return response.json();
+  }
+
+  async loraManagerTriggerWords(name) {
+    const params = new URLSearchParams({ name });
+    const response = await fetch(`${this.baseUrl}/api/lm/loras/get-trigger-words?${params.toString()}`);
+    if (!response.ok) throw new Error(`读取 LoRA trigger words 失败：${response.status}`);
+    return response.json();
+  }
+
+  async loraManagerPreview(query = {}) {
+    const params = new URLSearchParams();
+    if (query.path) params.set("path", String(query.path));
+    const response = await fetch(`${this.baseUrl}/api/lm/previews?${params.toString()}`);
+    if (!response.ok) throw new Error(`读取 LoRA 预览图失败：${response.status}`);
+    return {
+      bytes: Buffer.from(await response.arrayBuffer()),
+      contentType: response.headers.get("content-type") || "image/png",
+    };
+  }
+
   async uploadImage(file) {
     const form = new FormData();
     const bytes = await fs.readFile(file.path);

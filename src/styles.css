@@ -632,6 +632,198 @@ h1 {
   color: #c8b279;
 }
 
+.lora-stack-control,
+.trigger-toggle-control {
+  grid-column: 1 / -1;
+  min-height: 0;
+  border-right: 0;
+}
+
+.lora-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #343434;
+  padding: 8px;
+  background: #080808;
+}
+
+.lora-summary strong {
+  min-width: 52px;
+  color: #080808;
+  background: #d8d8d8;
+  padding: 4px 6px;
+  text-align: center;
+}
+
+.lora-summary span,
+.lora-row-main strong,
+.lora-row-main small,
+.lora-result strong,
+.lora-result small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lora-summary span {
+  color: #b7b7b7;
+  font-size: 12px;
+}
+
+.lora-stack-list,
+.trigger-group-list,
+.lora-result-list {
+  display: grid;
+  gap: 8px;
+}
+
+.lora-row {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(190px, auto);
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #343434;
+  padding: 8px;
+  background: #101010;
+}
+
+.lora-row.muted {
+  opacity: 0.62;
+}
+
+.lora-thumb {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #343434;
+  object-fit: cover;
+  background: #080808;
+  color: #ededed;
+  font-weight: 900;
+}
+
+.lora-row-main,
+.lora-result span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.lora-row-actions {
+  display: grid;
+  grid-template-columns: auto minmax(128px, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.lora-row-actions > button.active,
+.trigger-chip-row button.active,
+.trigger-group.active > .trigger-group-head button:first-child {
+  color: #080808;
+  background: #d8d8d8;
+}
+
+.lora-order-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 32px);
+  gap: 4px;
+}
+
+.lora-order-actions button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0;
+}
+
+.lora-picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 44;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.lora-picker {
+  width: min(100%, 780px);
+  max-height: min(88vh, 860px);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  border: 1px solid #343434;
+  background: #0e0e0e;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.54);
+}
+
+.lora-picker .option-tools {
+  padding: 12px;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+.lora-result-list {
+  overflow: auto;
+  padding: 12px;
+}
+
+.lora-result {
+  width: 100%;
+  min-height: 68px;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  justify-content: stretch;
+  gap: 10px;
+  padding: 8px;
+  text-align: left;
+}
+
+.lora-result em {
+  color: #b7b7b7;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.trigger-group {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #343434;
+  padding: 8px;
+  background: #101010;
+}
+
+.trigger-group-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(132px, auto);
+  gap: 8px;
+  align-items: center;
+}
+
+.trigger-group-head button {
+  min-width: 0;
+  justify-content: start;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.trigger-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.trigger-chip-row.flat {
+  border: 1px solid #343434;
+  padding: 8px;
+  background: #101010;
+}
+
+.trigger-chip-row button {
+  min-height: 32px;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
 .run-button {
   width: 100%;
   min-height: 58px;
@@ -1413,6 +1605,57 @@ h1 {
 
   .aspect-row {
     grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  }
+
+  .lora-row {
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .lora-row-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+  }
+
+  .lora-thumb {
+    width: 44px;
+    height: 44px;
+  }
+
+  .lora-summary {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+
+  .lora-order-actions {
+    grid-template-columns: repeat(3, 30px);
+  }
+
+  .lora-picker-overlay {
+    align-items: end;
+    padding: 8px;
+  }
+
+  .lora-picker {
+    max-height: calc(100vh - 16px);
+  }
+
+  .lora-picker .modal-head,
+  .lora-picker .option-tools,
+  .lora-result-list {
+    padding: 10px;
+  }
+
+  .lora-result {
+    grid-template-columns: 44px minmax(0, 1fr) 42px;
+    min-height: 62px;
+  }
+
+  .trigger-group-head {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trigger-group-head .compact-stepper {
+    grid-template-columns: auto 28px minmax(0, 1fr) 28px;
   }
 
   .history-tools {

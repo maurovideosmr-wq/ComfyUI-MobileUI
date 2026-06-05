@@ -70,6 +70,8 @@ Available nodes:
 - `MobileUI Diffusion Model Selector`
 - `MobileUI Sampler Selector`
 - `MobileUI Scheduler Selector`
+- `MobileUI LoRA Stack Input`
+- `MobileUI Trigger Words Toggle`
 - `MobileUI Workflow Metadata`
 
 Use them by wiring, not by typing hidden node IDs:
@@ -82,6 +84,8 @@ Use them by wiring, not by typing hidden node IDs:
 - `MobileUI Number Input` outputs `value_int` and `value_float`.
 - `MobileUI Select Input` outputs `value` as `STRING`.
 - Model and sampler selector nodes output wildcard-compatible primitive values so they can connect to ComfyUI combo/widget inputs such as `vae_name`, `clip_name`, `unet_name`, `sampler_name`, and `scheduler`.
+- `MobileUI LoRA Stack Input` outputs wildcard-compatible LoRA syntax text such as `<lora:name:1.00>` for `LoRA Text Loader (LoraManager)`'s `lora_syntax` input. It does not load LoRA models itself.
+- `MobileUI Trigger Words Toggle` receives `trigger_words` from `LoRA Text Loader (LoraManager)` and outputs filtered `STRING` text for prompt merge/concat nodes. It is an on/off filter only; trigger words do not have mobile weight controls.
 - `MobileUI Workflow Metadata` is a dummy metadata node for the workflow library. It does not connect to the graph and is removed before the wrapper submits the prompt to ComfyUI.
 
 For widget fields such as CLIP Text Encode `text` or KSampler `seed`, right-click the widget in ComfyUI and convert it to an input before connecting.
@@ -110,7 +114,22 @@ Additional v2 controls:
 - VAE, CLIP, and Diffusion Model selectors read options through ComfyUI model APIs.
 - Sampler and Scheduler selectors read options from ComfyUI `object_info/KSampler`.
 - Inside ComfyUI, selector default fields are dropdowns backed by the same model/sampler lists, not hand-typed strings.
+- LoRA Stack reads available LoRAs, preview images, tags, base model labels, and trained words through ComfyUI Lora Manager APIs. The mobile UI supports search, preview, add/remove, order, mute/unmute, and weight stepper controls.
+- Trigger Words Toggle groups trained words by selected LoRA by default, with per-group and per-word chips. Muted LoRAs are excluded from generated LoRA syntax and from active trigger output. Word matching is normalized so saved chip state still applies when Lora Manager changes whitespace or group punctuation.
 - Workflow Metadata fields are `workflow_id`, `title`, `description`, `cover_image`, `tags`, `author`, `version`, and `sort_order`.
+
+LoRA workflow wiring:
+
+```text
+MobileUI LoRA Stack Input.lora_syntax
+  -> LoRA Text Loader (LoraManager).lora_syntax
+
+LoRA Text Loader (LoraManager).trigger_words
+  -> MobileUI Trigger Words Toggle.trigger_words
+  -> prompt concat / prompt merge / text input
+```
+
+Do not put Lora Manager's own `TriggerWord Toggle (LoraManager)` after `MobileUI Trigger Words Toggle`. That node keeps its own cached original message and can bypass its toggle state when fed by another dynamic trigger source.
 
 ## Workflow Library
 
@@ -263,10 +282,12 @@ It keeps the prototype static-only, removes the marketing hero, uses neutral bla
 - `npm run build` is only a build check. It does not prove the ComfyUI workflow can run.
 - `/api/comfy/status` works with `COMFYUI_URL=http://192.168.124.41:8188`.
 - `/api/comfy/models/vae`, `/api/comfy/models/text_encoders`, `/api/comfy/models/diffusion_models`, and `/api/comfy/object-info/KSampler` proxy ComfyUI options for selector controls.
+- `/api/comfy/lm/loras`, `/api/comfy/lm/loras/trigger-words`, and `/api/comfy/lm/previews` proxy Lora Manager options and preview images for LoRA Stack controls.
 - `/api/workflows` lists project and uploaded workflow library entries.
 - `/api/workflows/:id/runs` lists paginated generated output history for the active workflow.
 - `mobileUI_dev.json` parses and runs successfully through the wrapper, records a run manifest, serves the archived image through the wrapper image endpoint, and can download selected history images as a ZIP.
 - Browser verification confirmed mobile `参数`/`结果` view switching, uncropped current original image display, current/history full-screen image preview, full-width mobile history cards, compact two-row history tools, stage-top compare controls, all three compare modes, and mobile `结果` continuous generation from the bottom `开始生成` action.
+- Direct custom-node verification confirmed `MobileUI Trigger Words Toggle` filters Lora Manager's `dispersion,, hue shifting,, ...` runtime trigger text when the Light Concepts group is turned off. Restart ComfyUI after installing the updated custom node before checking this through the real graph.
 - Complete testing means the real end-to-end path succeeds: status check, workflow schema parse, `/api/run`, and a real ComfyUI output image URL.
 
 Dev history is in `doc/devlog.md`.
